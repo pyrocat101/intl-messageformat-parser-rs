@@ -5,6 +5,7 @@ use std::fmt;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
   UnclosedArgumentBrace,
+  EmptyArgument,
   // TODO
 }
 
@@ -80,7 +81,7 @@ pub type Ast<'s> = Vec<AstElement<'s>>;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AstElement<'s> {
   /// Raw text
-  Literal { value: &'s str, span: Span },
+  Literal { value: String, span: Span },
   /// Variable w/o any format, e.g `var` in `this is a {var}`
   Argument { value: &'s str, span: Span },
   /// Variable w/ number format

@@ -25,10 +25,12 @@ impl<'s> Parser<'s> {
     let mut elements: Vec<AstElement> = vec![];
 
     loop {
-      elements.push(match self.peek() {
-        None => break,
-        Some('{') => self.parse_argument()?,
-        Some(_) => self.parse_literal()?,
+      if self.is_eof() {
+        break;
+      }
+      elements.push(match self.char() {
+        '{' => self.parse_argument()?,
+        _ => self.parse_literal()?,
       })
     }
 
@@ -41,14 +43,110 @@ impl<'s> Parser<'s> {
 
   fn parse_literal(&self) -> Result<AstElement> {
     let start = self.position();
-    self.bump_until('{');
 
+    let mut fragments = vec![];
+    loop {
+      if self.bump_if("''") {
+        fragments.push('\''.to_string());
+      } else if let Some(fragment) = self.try_parse_quote() {
+        fragments.push(fragment);
+      } else if let Some(fragment) = self.try_parse_unquoted() {
+        fragments.push(fragment.to_string());
+      } else if let Some(fragment) = self.try_parse_left_angle_bracket() {
+        fragments.push(fragment);
+      } else {
+        // TODO: remove this after more rules are added.
+        assert!(self.is_eof() || self.char() == '{');
+        break;
+      }
+    }
+
+    let value: String = fragments.join("")[..].to_string();
     let span = Span::new(start, self.position());
-    Ok(AstElement::Literal { span, value: self.slice(&span) })
+    Ok(AstElement::Literal { span, value })
   }
 
-  fn slice(&self, span: &Span) -> &str {
-    &self.message[span.start.offset..span.end.offset]
+  /// Starting with ICU 4.8, an ASCII apostrophe only starts quoted text if it immediately precedes
+  /// a character that requires quoting (that is, "only where needed"), and works the same in
+  /// nested messages as on the top level of the pattern. The new behavior is otherwise compatible.
+  fn try_parse_quote(&self) -> Option<String> {
+    if self.is_eof() || self.char() != '\'' {
+      return None;
+    }
+
+    // Parse escaped char following the apostrophe, or early return if there is no escaped char.
+    // TODO
+    let is_in_plural_option = false;
+    // Check if is valis escaped character
+    match self.peek() {
+      Some('{') | Some('<') | Some('>') | Some('}') => (),
+      Some('#') if is_in_plural_option => (),
+      _ => {
+        return None;
+      }
+    }
+
+    self.bump(); // apostrophe
+    let mut fragments = vec![self.char()]; // escaped char
+    self.bump();
+
+    // read chars until the optional closing apostrophe is found
+    loop {
+      if self.is_eof() {
+        break;
+      }
+      match self.char() {
+        '\'' if self.peek() == Some('\'') => {
+          fragments.push('\'');
+          // Bump one more time because we need to skip 2 characters.
+          self.bump();
+        }
+        '\'' => {
+          // Optional closing apostrophe.
+          self.bump();
+          break;
+        }
+        c => fragments.push(c),
+      }
+      self.bump();
+    }
+
+    Some(fragments.into_iter().collect())
+  }
+
+  fn try_parse_unquoted(&self) -> Option<char> {
+    if self.is_eof() {
+      return None;
+    }
+    // TODO
+    let is_in_plural_option = false;
+    let is_in_nested_message_text = false;
+    match self.char() {
+      '<' | '{' => None,
+      '#' if is_in_plural_option => None,
+      '}' if is_in_nested_message_text => None,
+      c => {
+        self.bump();
+        Some(c)
+      }
+    }
+  }
+
+  fn try_parse_left_angle_bracket(&self) -> Option<String> {
+    // TODO
+    let should_ignore_tag = false;
+
+    if self.is_eof() || self.char() != '<' {
+      return None;
+    }
+
+    if !should_ignore_tag {
+      // make sure `<` is not parsed as regular opening angle bracket
+      // NOTE: this requires infinite lookahead...
+      // TODO
+    }
+
+    Some('<'.to_string())
   }
 
   fn parse_argument(&self) -> Result<AstElement> {
@@ -150,20 +248,20 @@ impl<'s> Parser<'s> {
     }
   }
 
-  // /// If the substring starting at the current position of the parser has
-  // /// the given prefix, then bump the parser to the character immediately
-  // /// following the prefix and return true. Otherwise, don't bump the parser
-  // /// and return false.
-  // fn bump_if(&mut self, prefix: &str) -> bool {
-  //   if self.message[self.offset()..].starts_with(prefix) {
-  //     for _ in 0..prefix.chars().count() {
-  //       self.bump();
-  //     }
-  //     true
-  //   } else {
-  //     false
-  //   }
-  // }
+  /// If the substring starting at the current position of the parser has
+  /// the given prefix, then bump the parser to the character immediately
+  /// following the prefix and return true. Otherwise, don't bump the parser
+  /// and return false.
+  fn bump_if(&self, prefix: &str) -> bool {
+    if self.message[self.offset()..].starts_with(prefix) {
+      for _ in 0..prefix.chars().count() {
+        self.bump();
+      }
+      true
+    } else {
+      false
+    }
+  }
 
   /// Bump the parser until the pattern character is found and return `true`.
   /// Otherwise bump to the end of the file and return `false`.
@@ -178,14 +276,14 @@ impl<'s> Parser<'s> {
     }
   }
 
-  /// Peek at the next character in the input without advancing the parser.
+  /// Peek at the *next* character in the input without advancing the parser.
   ///
   /// If the input has been exhausted, then this returns `None`.
   fn peek(&self) -> Option<char> {
     if self.is_eof() {
       return None;
     }
-    self.message[self.offset()..].chars().next()
+    self.message[self.offset() + self.char().len_utf8()..].chars().next()
   }
 
   /// Returns true if the next call to `bump` would return false.
