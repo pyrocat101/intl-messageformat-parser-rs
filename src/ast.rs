@@ -21,7 +21,7 @@ pub struct Position {
 
 impl Position {
   pub fn new(offset: usize, line: usize, column: usize) -> Position {
-    return Position { offset, line, column };
+    Position { offset, line, column }
   }
 }
 
@@ -56,7 +56,7 @@ impl fmt::Debug for Span {
 impl Span {
   /// Create a new span with the given positions.
   pub fn new(start: Position, end: Position) -> Span {
-    Span { start: start, end: end }
+    Span { start, end }
   }
 }
 
