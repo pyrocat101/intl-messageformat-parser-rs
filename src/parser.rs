@@ -173,17 +173,14 @@ impl<'s> Parser<'s> {
       ));
     }
 
-    // argument name or number
-    if self.is_eof()
-      || self.char().is_whitespace()
-      || is_pattern_syntax(self.char())
-    {
+    // argument name
+    let value = self.parse_identifier_if_possible();
+    if value.is_empty() {
       return Err(self.error(
         ErrorKind::MalformedArgument,
         Span::new(opening_brace_position, self.position()),
       ));
     }
-    let value = self.parse_argument_name();
 
     self.bump_space();
 
@@ -194,26 +191,128 @@ impl<'s> Parser<'s> {
       ));
     }
 
-    // TODO: support parsing comma here
+    match self.char() {
+      // Simple argument: `{name}`
+      '}' => {
+        self.bump(); // `}`
+
+        Ok(AstElement::Argument {
+          // value does not include the opening and closing braces.
+          value,
+          span: Span::new(opening_brace_position, self.position()),
+        })
+      }
+
+      // Argument with options: `{name, format, ...}`
+      ',' => {
+        self.bump(); // ','
+        self.bump_space();
+
+        if self.is_eof() {
+          return Err(self.error(
+            ErrorKind::UnclosedArgumentBrace,
+            Span::new(opening_brace_position, self.position()),
+          ));
+        }
+
+        self.parse_argument_options(value, opening_brace_position)
+      }
+
+      _ => Err(self.error(
+        ErrorKind::MalformedArgument,
+        Span::new(opening_brace_position, self.position()),
+      )),
+    }
+  }
+
+  fn parse_argument_options(
+    &'s self,
+    value: &'s str,
+    opening_brace_position: Position,
+  ) -> Result<AstElement> {
+    // Parse this range:
+    // {name, format, style}
+    //        ^-----^
+    let format_starting_position = self.position();
+    let format = self.parse_identifier_if_possible();
+    let format_end_position = self.position();
+
+    match format {
+      "" => {
+        // Expecting a style string number, date, time, plural, selectordinal, or select.
+        Err(self.error(
+          ErrorKind::ExpectArgumentFormat,
+          Span::new(format_starting_position, format_end_position),
+        ))
+      }
+
+      "number" => {
+        // Parse this range:
+        // {name, number, style}
+        //              ^-------^
+        self.bump_space();
+
+        // TODO: check for style
+        self.try_parse_argument_close(opening_brace_position)?;
+
+        // TODO: support number arg style
+        Ok(AstElement::Number {
+          value,
+          span: Span::new(opening_brace_position, self.position()),
+          style: None,
+        })
+      }
+
+      "date" | "time" => {
+        self.bump_space();
+        self.try_parse_argument_close(opening_brace_position)?;
+
+        let span = Span::new(opening_brace_position, self.position());
+        // TODO: support date / time arg style
+        if format == "date" {
+          Ok(AstElement::Date { value, span, style: None })
+        } else {
+          Ok(AstElement::Time { value, span, style: None })
+        }
+      }
+
+      // TODO: support these
+      // "plural" | "selectordinal" => {}
+      // "select" => {}
+      _ => Err(self.error(
+        ErrorKind::InvalidArgumentFormat,
+        Span::new(format_starting_position, format_end_position),
+      )),
+    }
+  }
+
+  fn try_parse_argument_close(
+    &self,
+    opening_brace_position: Position,
+  ) -> Result<()> {
+    if self.is_eof() {
+      return Err(self.error(
+        ErrorKind::UnclosedArgumentBrace,
+        Span::new(opening_brace_position, self.position()),
+      ));
+    }
+
     if self.char() != '}' {
       return Err(self.error(
         ErrorKind::MalformedArgument,
         Span::new(opening_brace_position, self.position()),
       ));
     }
-
     self.bump(); // `}`
-    Ok(AstElement::Argument {
-      // value does not include the opening and closing braces.
-      value,
-      span: Span::new(opening_brace_position, self.position()),
-    })
+
+    Ok(())
   }
 
-  fn parse_argument_name(&self) -> &str {
+  /// Advance the parser until the end of the identifier, if it is currently on
+  /// an identifier character. Return an empty string otherwise.
+  fn parse_identifier_if_possible(&self) -> &str {
     let starting_position = self.position();
 
-    self.bump();
     while !self.is_eof()
       && !self.char().is_whitespace()
       && !is_pattern_syntax(self.char())

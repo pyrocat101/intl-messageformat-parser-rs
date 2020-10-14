@@ -403,4 +403,119 @@ mod tests {
             })
         )
     }
+
+    #[test]
+    fn simple_number_arg_1() {
+        assert_eq!(
+            Parser::new("I have {numCats, number} cats.").parse(),
+            Ok(vec![
+                AstElement::Literal {
+                    value: "I have ".to_string(),
+                    span: Span::new(
+                        Position::new(0, 1, 1),
+                        Position::new(7, 1, 8)
+                    )
+                },
+                AstElement::Number {
+                    value: "numCats",
+                    span: Span::new(
+                        Position::new(7, 1, 8),
+                        Position::new(24, 1, 25)
+                    ),
+                    style: None
+                },
+                AstElement::Literal {
+                    value: " cats.".to_string(),
+                    span: Span::new(
+                        Position::new(24, 1, 25),
+                        Position::new(30, 1, 31)
+                    )
+                },
+            ])
+        )
+    }
+
+    #[test]
+    fn simple_date_and_time_arg_1() {
+        assert_eq!(
+            Parser::new("Your meeting is scheduled for the {dateVal, date} at {timeVal, time}").parse(),
+            Ok(vec![
+                AstElement::Literal {
+                    value: "Your meeting is scheduled for the ".to_string(),
+                    span: Span::new(
+                        Position::new(0, 1, 1),
+                        Position::new(34, 1, 35)
+                    )
+                },
+                AstElement::Date {
+                    value: "dateVal",
+                    span: Span::new(
+                        Position::new(34, 1, 35),
+                        Position::new(49, 1, 50)
+                    ),
+                    style: None
+                },
+                AstElement::Literal {
+                    value: " at ".to_string(),
+                    span: Span::new(
+                        Position::new(49, 1, 50),
+                        Position::new(53, 1, 54)
+                    )
+                },
+                AstElement::Time {
+                    value: "timeVal",
+                    span: Span::new(
+                        Position::new(53, 1, 54),
+                        Position::new(68, 1, 69)
+                    ),
+                    style: None
+                },
+            ])
+        )
+    }
+
+    #[test]
+    fn invalid_arg_format_1() {
+        assert_eq!(
+            Parser::new("My name is {0, foo}").parse(),
+            Err(Error {
+                kind: ErrorKind::InvalidArgumentFormat,
+                message: "My name is {0, foo}".to_string(),
+                span: Span::new(
+                    Position::new(15, 1, 16),
+                    Position::new(18, 1, 19)
+                )
+            })
+        )
+    }
+
+    #[test]
+    fn expect_arg_format_1() {
+        assert_eq!(
+            Parser::new("My name is {0, }").parse(),
+            Err(Error {
+                kind: ErrorKind::ExpectArgumentFormat,
+                message: "My name is {0, }".to_string(),
+                span: Span::new(
+                    Position::new(15, 1, 16),
+                    Position::new(15, 1, 16)
+                )
+            })
+        )
+    }
+
+    #[test]
+    fn unclosed_number_arg_1() {
+        assert_eq!(
+            Parser::new("{0, number").parse(),
+            Err(Error {
+                kind: ErrorKind::UnclosedArgumentBrace,
+                message: "{0, number".to_string(),
+                span: Span::new(
+                    Position::new(0, 1, 1),
+                    Position::new(10, 1, 11)
+                )
+            })
+        )
+    }
 }

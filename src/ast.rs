@@ -10,7 +10,10 @@ pub enum ErrorKind {
   EmptyArgument,
   /// Argument is malformed (e.g. `{foo!}``)
   MalformedArgument,
-  // TODO
+  /// Expect an argument format (e.g. `{foo,}`)
+  ExpectArgumentFormat,
+  /// Unsupported argument format (e.g. `{foo,foo}`)
+  InvalidArgumentFormat,
 }
 
 /// A single position in an ICU message.
@@ -89,11 +92,11 @@ pub enum AstElement<'s> {
   /// Variable w/o any format, e.g `var` in `this is a {var}`
   Argument { value: &'s str, span: Span },
   /// Variable w/ number format
-  Number { value: &'s str, span: Span, style: NumberSkeleton<'s> },
+  Number { value: &'s str, span: Span, style: Option<NumberSkeleton<'s>> },
   /// Variable w/ date format
-  Date { value: &'s str, span: Span, style: DateTimeSkeleton<'s> },
+  Date { value: &'s str, span: Span, style: Option<DateTimeSkeleton<'s>> },
   /// Variable w/ time format
-  Time { value: &'s str, span: Span, options: DateTimeSkeleton<'s> },
+  Time { value: &'s str, span: Span, style: Option<DateTimeSkeleton<'s>> },
   /// Variable w/ select format
   Select {
     value: &'s str,
