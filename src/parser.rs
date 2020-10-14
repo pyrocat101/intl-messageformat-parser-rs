@@ -1,6 +1,7 @@
-use super::ast::{self, Ast, AstElement, Position, Span};
+use crate::ast::{self, Ast, AstElement, ErrorKind, Position, Span};
+use crate::pattern_syntax::is_pattern_syntax;
 use std::cell::Cell;
-use std::cmp;
+// use std::cmp;
 use std::result;
 
 type Result<T> = result::Result<T, ast::Error>;
@@ -9,6 +10,7 @@ type Result<T> = result::Result<T, ast::Error>;
 pub struct Parser<'s> {
   position: Cell<Position>,
   message: &'s str,
+  should_ignore_tag: bool,
   // TODO: parser context and parser options
 }
 
@@ -17,6 +19,8 @@ impl<'s> Parser<'s> {
     Parser {
       message,
       position: Cell::new(Position { offset: 0, line: 1, column: 1 }),
+      // TODO: support configuring this.
+      should_ignore_tag: true,
     }
   }
 
@@ -44,16 +48,16 @@ impl<'s> Parser<'s> {
   fn parse_literal(&self) -> Result<AstElement> {
     let start = self.position();
 
-    let mut fragments = vec![];
+    let mut value = String::new();
     loop {
       if self.bump_if("''") {
-        fragments.push('\''.to_string());
+        value.push('\'');
       } else if let Some(fragment) = self.try_parse_quote() {
-        fragments.push(fragment);
+        value.push_str(&fragment);
       } else if let Some(fragment) = self.try_parse_unquoted() {
-        fragments.push(fragment.to_string());
+        value.push(fragment);
       } else if let Some(fragment) = self.try_parse_left_angle_bracket() {
-        fragments.push(fragment);
+        value.push_str(&fragment);
       } else {
         // TODO: remove this after more rules are added.
         assert!(self.is_eof() || self.char() == '{');
@@ -61,7 +65,6 @@ impl<'s> Parser<'s> {
       }
     }
 
-    let value: String = fragments.join("")[..].to_string();
     let span = Span::new(start, self.position());
     Ok(AstElement::Literal { span, value })
   }
@@ -87,7 +90,7 @@ impl<'s> Parser<'s> {
     }
 
     self.bump(); // apostrophe
-    let mut fragments = vec![self.char()]; // escaped char
+    let mut value = self.char().to_string(); // escaped char
     self.bump();
 
     // read chars until the optional closing apostrophe is found
@@ -97,7 +100,7 @@ impl<'s> Parser<'s> {
       }
       match self.char() {
         '\'' if self.peek() == Some('\'') => {
-          fragments.push('\'');
+          value.push('\'');
           // Bump one more time because we need to skip 2 characters.
           self.bump();
         }
@@ -106,12 +109,12 @@ impl<'s> Parser<'s> {
           self.bump();
           break;
         }
-        c => fragments.push(c),
+        c => value.push(c),
       }
       self.bump();
     }
 
-    Some(fragments.into_iter().collect())
+    Some(value)
   }
 
   fn try_parse_unquoted(&self) -> Option<char> {
@@ -151,29 +154,79 @@ impl<'s> Parser<'s> {
 
   fn parse_argument(&self) -> Result<AstElement> {
     let opening_brace_position = self.position();
-    self.bump();
+    self.bump(); // `{`
 
-    let argument_start_offset = self.offset();
-    if self.bump_until('}') {
-      let argument_end_offset = self.offset();
-      self.bump();
-      let closing_brace_position = self.position();
+    self.bump_space();
 
-      Ok(AstElement::Argument {
-        // value does not include the opening and closing braces.
-        value: &self.message[argument_start_offset..argument_end_offset],
-        span: Span::new(opening_brace_position, closing_brace_position),
-      })
-    } else {
-      // Unclosed argument
-      Err(self.error(
-        ast::ErrorKind::UnclosedArgumentBrace,
+    if self.is_eof() {
+      return Err(self.error(
+        ErrorKind::UnclosedArgumentBrace,
         Span::new(opening_brace_position, self.position()),
-      ))
+      ));
     }
+
+    if self.char() == '}' {
+      self.bump();
+      return Err(self.error(
+        ErrorKind::EmptyArgument,
+        Span::new(opening_brace_position, self.position()),
+      ));
+    }
+
+    // argument name or number
+    if self.is_eof()
+      || self.char().is_whitespace()
+      || is_pattern_syntax(self.char())
+    {
+      return Err(self.error(
+        ErrorKind::MalformedArgument,
+        Span::new(opening_brace_position, self.position()),
+      ));
+    }
+    let value = self.parse_argument_name();
+
+    self.bump_space();
+
+    if self.is_eof() {
+      return Err(self.error(
+        ErrorKind::UnclosedArgumentBrace,
+        Span::new(opening_brace_position, self.position()),
+      ));
+    }
+
+    // TODO: support parsing comma here
+    if self.char() != '}' {
+      return Err(self.error(
+        ErrorKind::MalformedArgument,
+        Span::new(opening_brace_position, self.position()),
+      ));
+    }
+
+    self.bump(); // `}`
+    Ok(AstElement::Argument {
+      // value does not include the opening and closing braces.
+      value,
+      span: Span::new(opening_brace_position, self.position()),
+    })
   }
 
-  fn error(&self, kind: ast::ErrorKind, span: Span) -> ast::Error {
+  fn parse_argument_name(&self) -> &str {
+    let starting_position = self.position();
+
+    self.bump();
+    while !self.is_eof()
+      && !self.char().is_whitespace()
+      && !is_pattern_syntax(self.char())
+    {
+      self.bump();
+    }
+
+    let end_position = self.position();
+
+    &self.message[starting_position.offset..end_position.offset]
+  }
+
+  fn error(&self, kind: ErrorKind, span: Span) -> ast::Error {
     ast::Error { kind, message: self.message.to_string(), span }
   }
 
@@ -217,36 +270,36 @@ impl<'s> Parser<'s> {
     self.message[self.offset()..].chars().next().is_some()
   }
 
-  /// Bump the parser to the target offset.
-  ///
-  /// If target offset is beyond the end of the input, bump the parser to the end of the input.
-  fn bump_to(&self, target_offset: usize) {
-    assert!(
-      self.offset() < target_offset,
-      "target_offset {} must be greater than the current offset {})",
-      target_offset,
-      self.offset()
-    );
+  // /// Bump the parser to the target offset.
+  // ///
+  // /// If target offset is beyond the end of the input, bump the parser to the end of the input.
+  // fn bump_to(&self, target_offset: usize) {
+  //   assert!(
+  //     self.offset() < target_offset,
+  //     "target_offset {} must be greater than the current offset {})",
+  //     target_offset,
+  //     self.offset()
+  //   );
 
-    let target_offset = cmp::min(target_offset, self.message.len());
-    loop {
-      let offset = self.offset();
+  //   let target_offset = cmp::min(target_offset, self.message.len());
+  //   loop {
+  //     let offset = self.offset();
 
-      if self.offset() == target_offset {
-        break;
-      }
-      assert!(
-        offset < target_offset,
-        "target_offset is at invalid unicode byte boundary: {}",
-        target_offset
-      );
+  //     if self.offset() == target_offset {
+  //       break;
+  //     }
+  //     assert!(
+  //       offset < target_offset,
+  //       "target_offset is at invalid unicode byte boundary: {}",
+  //       target_offset
+  //     );
 
-      let has_more = self.bump();
-      if !has_more {
-        break;
-      }
-    }
-  }
+  //     let has_more = self.bump();
+  //     if !has_more {
+  //       break;
+  //     }
+  //   }
+  // }
 
   /// If the substring starting at the current position of the parser has
   /// the given prefix, then bump the parser to the character immediately
@@ -263,16 +316,23 @@ impl<'s> Parser<'s> {
     }
   }
 
-  /// Bump the parser until the pattern character is found and return `true`.
-  /// Otherwise bump to the end of the file and return `false`.
-  fn bump_until(&self, pattern: char) -> bool {
-    let current_offset = self.offset();
-    if let Some(delta) = self.message[current_offset..].find(pattern) {
-      self.bump_to(current_offset + delta);
-      true
-    } else {
-      self.bump_to(self.message.len());
-      false
+  // /// Bump the parser until the pattern character is found and return `true`.
+  // /// Otherwise bump to the end of the file and return `false`.
+  // fn bump_until(&self, pattern: char) -> bool {
+  //   let current_offset = self.offset();
+  //   if let Some(delta) = self.message[current_offset..].find(pattern) {
+  //     self.bump_to(current_offset + delta);
+  //     true
+  //   } else {
+  //     self.bump_to(self.message.len());
+  //     false
+  //   }
+  // }
+
+  /// advance the parser through all whitespace to the next non-whitespace byte.
+  fn bump_space(&self) {
+    while !self.is_eof() && self.char().is_whitespace() {
+      self.bump();
     }
   }
 

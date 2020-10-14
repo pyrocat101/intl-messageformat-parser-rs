@@ -4,8 +4,12 @@ use std::fmt;
 /// The type of an error that occurred while building an AST.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
+  /// Argumernt is unclosed (e.g. `{0`)
   UnclosedArgumentBrace,
+  /// Argument is empty (e.g. `{}`).
   EmptyArgument,
+  /// Argument is malformed (e.g. `{foo!}``)
+  MalformedArgument,
   // TODO
 }
 

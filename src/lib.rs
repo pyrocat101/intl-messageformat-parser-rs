@@ -1,6 +1,7 @@
 mod ast;
 mod js_intl;
 mod parser;
+mod pattern_syntax;
 
 pub use ast::{Ast, AstElement, Position, Span};
 pub use parser::Parser;
@@ -181,7 +182,6 @@ mod tests {
 
     /// The apostrophe here does not start a quote because it is not followed by `{` or `}`,
     /// so the `{}` is invalid syntax.
-    #[ignore]
     #[test]
     fn unclosed_quoted_string_2() {
         assert_eq!(
@@ -189,13 +189,12 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::EmptyArgument,
                 message: "a 'a {}{}".to_string(),
-                span: Span::new(Position::new(0, 1, 1), Position::new(0, 1, 1))
+                span: Span::new(Position::new(5, 1, 6), Position::new(7, 1, 8))
             })
         );
     }
 
     /// The last apostrophe ends the escaping, therefore the last `{}` is invalid syntax.
-    #[ignore]
     #[test]
     fn unclosed_quoted_string_3() {
         assert_eq!(
@@ -203,7 +202,10 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::EmptyArgument,
                 message: "a '{a{ {}{}{}}}''' \n {}".to_string(),
-                span: Span::new(Position::new(0, 1, 1), Position::new(0, 1, 1))
+                span: Span::new(
+                    Position::new(21, 2, 2),
+                    Position::new(23, 2, 4)
+                )
             })
         );
     }
@@ -278,6 +280,127 @@ mod tests {
                     Position::new(1, 1, 1)
                 )
             }])
+        )
+    }
+
+    #[test]
+    fn simple_argument_1() {
+        assert_eq!(
+            Parser::new("My name is {0}").parse(),
+            Ok(vec![
+                AstElement::Literal {
+                    value: "My name is ".to_string(),
+                    span: Span::new(
+                        Position::new(0, 1, 1),
+                        Position::new(11, 1, 12)
+                    )
+                },
+                AstElement::Argument {
+                    value: "0",
+                    span: Span::new(
+                        Position::new(11, 1, 12),
+                        Position::new(14, 1, 15)
+                    )
+                }
+            ])
+        )
+    }
+
+    #[test]
+    fn simple_argument_2() {
+        assert_eq!(
+            Parser::new("My name is { name }").parse(),
+            Ok(vec![
+                AstElement::Literal {
+                    value: "My name is ".to_string(),
+                    span: Span::new(
+                        Position::new(0, 1, 1),
+                        Position::new(11, 1, 12)
+                    )
+                },
+                AstElement::Argument {
+                    value: "name",
+                    span: Span::new(
+                        Position::new(11, 1, 12),
+                        Position::new(19, 1, 20)
+                    )
+                }
+            ])
+        )
+    }
+
+    #[test]
+    fn empty_argument_1() {
+        assert_eq!(
+            Parser::new("My name is { }").parse(),
+            Err(Error {
+                kind: ErrorKind::EmptyArgument,
+                message: "My name is { }".to_string(),
+                span: Span::new(
+                    Position::new(11, 1, 12),
+                    Position::new(14, 1, 15)
+                )
+            })
+        )
+    }
+
+    #[test]
+    fn empty_argument_2() {
+        assert_eq!(
+            Parser::new("My name is {\n}").parse(),
+            Err(Error {
+                kind: ErrorKind::EmptyArgument,
+                message: "My name is {\n}".to_string(),
+                span: Span::new(
+                    Position::new(11, 1, 12),
+                    Position::new(14, 2, 2)
+                )
+            })
+        )
+    }
+
+    #[test]
+    fn malformed_argument_1() {
+        assert_eq!(
+            Parser::new("My name is {0!}").parse(),
+            Err(Error {
+                kind: ErrorKind::MalformedArgument,
+                message: "My name is {0!}".to_string(),
+                span: Span::new(
+                    Position::new(11, 1, 12),
+                    Position::new(13, 1, 14)
+                )
+            })
+        )
+    }
+
+    #[test]
+    fn unclosed_argument_1() {
+        assert_eq!(
+            Parser::new("My name is { 0").parse(),
+            Err(Error {
+                kind: ErrorKind::UnclosedArgumentBrace,
+                message: "My name is { 0".to_string(),
+                span: Span::new(
+                    Position::new(11, 1, 12),
+                    Position::new(14, 1, 15)
+                )
+            })
+        )
+    }
+
+    #[test]
+    fn unclosed_argument_2() {
+        assert_eq!(
+            Parser::new("My name is { ").parse(),
+            Err(Error {
+                kind: ErrorKind::UnclosedArgumentBrace,
+                message: "My name is { ".to_string(),
+                span: Span::new(
+                    Position::new(11, 1, 12),
+                    Position::new(13, 1, 14)
+                )
+            })
         )
     }
 }
