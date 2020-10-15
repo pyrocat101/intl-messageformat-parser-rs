@@ -10,10 +10,18 @@ pub enum ErrorKind {
   EmptyArgument,
   /// Argument is malformed (e.g. `{foo!}``)
   MalformedArgument,
-  /// Expect an argument format (e.g. `{foo,}`)
-  ExpectArgumentFormat,
-  /// Unsupported argument format (e.g. `{foo,foo}`)
-  InvalidArgumentFormat,
+  /// Expect an argument type (e.g. `{foo,}`)
+  ExpectArgumentType,
+  /// Unsupported argument type (e.g. `{foo,foo}`)
+  InvalidArgumentType,
+  /// Expect a number argument style (e.g. `{foo, number, }`)
+  ExpectNumberStyle,
+  /// Expect a number skeleton token following the `::` (e.g. `{foo, number, ::}`})
+  ExpectNumberSkeletonToken,
+  /// Expect a number skeleton token options following the slash (e.g. `{foo, number, ::currency/}`)
+  ExpectNumberSkeletonTokenOption,
+  /// Unmatched apostrophes in the argument style (e.g. `{foo, number, 'test`)
+  UnclosedQuoteInArgumentStyle,
 }
 
 /// A single position in an ICU message.
@@ -92,11 +100,11 @@ pub enum AstElement<'s> {
   /// Variable w/o any format, e.g `var` in `this is a {var}`
   Argument { value: &'s str, span: Span },
   /// Variable w/ number format
-  Number { value: &'s str, span: Span, style: Option<NumberSkeleton<'s>> },
+  Number { value: &'s str, span: Span, style: Option<NumberArgStyle<'s>> },
   /// Variable w/ date format
-  Date { value: &'s str, span: Span, style: Option<DateTimeSkeleton<'s>> },
+  Date { value: &'s str, span: Span, style: Option<DateTimeArgStyle<'s>> },
   /// Variable w/ time format
-  Time { value: &'s str, span: Span, style: Option<DateTimeSkeleton<'s>> },
+  Time { value: &'s str, span: Span, style: Option<DateTimeArgStyle<'s>> },
   /// Variable w/ select format
   Select {
     value: &'s str,
@@ -117,16 +125,28 @@ pub enum AstElement<'s> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NumberArgStyle<'s> {
+  Style(&'s str),
+  Skeleton(NumberSkeleton<'s>),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NumberSkeleton<'s> {
-  tokens: Vec<NumberSkeletonToken<'s>>,
-  span: Span,
-  parsed_options: Option<JsIntlNumberFormatOptions>,
+  pub tokens: Vec<NumberSkeletonToken<'s>>,
+  pub span: Span,
+  pub parsed_options: Option<JsIntlNumberFormatOptions>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NumberSkeletonToken<'s> {
-  stem: &'s str,
-  options: Vec<&'s str>,
+  pub stem: &'s str,
+  pub options: Vec<&'s str>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DateTimeArgStyle<'s> {
+  Style(&'s str),
+  Skeleton(DateTimeSkeleton<'s>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

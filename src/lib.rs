@@ -8,7 +8,7 @@ pub use parser::Parser;
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{AstElement, Error, ErrorKind, Position, Span};
+    use crate::ast::*;
     use crate::parser::Parser;
 
     #[test]
@@ -479,7 +479,7 @@ mod tests {
         assert_eq!(
             Parser::new("My name is {0, foo}").parse(),
             Err(Error {
-                kind: ErrorKind::InvalidArgumentFormat,
+                kind: ErrorKind::InvalidArgumentType,
                 message: "My name is {0, foo}".to_string(),
                 span: Span::new(
                     Position::new(15, 1, 16),
@@ -494,7 +494,7 @@ mod tests {
         assert_eq!(
             Parser::new("My name is {0, }").parse(),
             Err(Error {
-                kind: ErrorKind::ExpectArgumentFormat,
+                kind: ErrorKind::ExpectArgumentType,
                 message: "My name is {0, }".to_string(),
                 span: Span::new(
                     Position::new(15, 1, 16),
@@ -514,6 +514,177 @@ mod tests {
                 span: Span::new(
                     Position::new(0, 1, 1),
                     Position::new(10, 1, 11)
+                )
+            })
+        )
+    }
+
+    #[test]
+    fn unclosed_number_arg_2() {
+        assert_eq!(
+            Parser::new("{0, number, percent").parse(),
+            Err(Error {
+                kind: ErrorKind::UnclosedArgumentBrace,
+                message: "{0, number, percent".to_string(),
+                span: Span::new(
+                    Position::new(0, 1, 1),
+                    Position::new(19, 1, 20)
+                )
+            })
+        )
+    }
+
+    #[test]
+    fn unclosed_number_arg_3() {
+        assert_eq!(
+            Parser::new("{0, number, ::percent").parse(),
+            Err(Error {
+                kind: ErrorKind::UnclosedArgumentBrace,
+                message: "{0, number, ::percent".to_string(),
+                span: Span::new(
+                    Position::new(0, 1, 1),
+                    Position::new(21, 1, 22)
+                )
+            })
+        )
+    }
+
+    #[test]
+    fn number_arg_style_1() {
+        assert_eq!(
+            Parser::new("{0, number, percent}").parse(),
+            Ok(vec![AstElement::Number {
+                value: "0",
+                span: Span::new(
+                    Position::new(0, 1, 1),
+                    Position::new(20, 1, 21)
+                ),
+                style: Some(NumberArgStyle::Style("percent"))
+            }])
+        )
+    }
+
+    #[test]
+    fn expect_number_arg_style_1() {
+        assert_eq!(
+            Parser::new("{0, number, }").parse(),
+            Err(Error {
+                kind: ErrorKind::ExpectNumberStyle,
+                message: "{0, number, }".to_string(),
+                span: Span::new(
+                    Position::new(12, 1, 13),
+                    Position::new(12, 1, 13)
+                )
+            })
+        )
+    }
+
+    #[test]
+    fn number_arg_skeleton_1() {
+        assert_eq!(
+            Parser::new("{0, number, ::percent}").parse(),
+            Ok(vec![AstElement::Number {
+                value: "0",
+                span: Span::new(
+                    Position::new(0, 1, 1),
+                    Position::new(22, 1, 23)
+                ),
+                style: Some(NumberArgStyle::Skeleton(NumberSkeleton {
+                    tokens: vec![NumberSkeletonToken {
+                        stem: "percent",
+                        options: vec![]
+                    }],
+                    span: Span::new(
+                        Position::new(12, 1, 13),
+                        Position::new(21, 1, 22)
+                    ),
+                    parsed_options: None,
+                }))
+            }])
+        )
+    }
+
+    #[test]
+    fn number_arg_skeleton_2() {
+        assert_eq!(
+            Parser::new("{0, number, :: currency/GBP}").parse(),
+            Ok(vec![AstElement::Number {
+                value: "0",
+                span: Span::new(
+                    Position::new(0, 1, 1),
+                    Position::new(28, 1, 29)
+                ),
+                style: Some(NumberArgStyle::Skeleton(NumberSkeleton {
+                    tokens: vec![NumberSkeletonToken {
+                        stem: "currency",
+                        options: vec!["GBP"]
+                    }],
+                    span: Span::new(
+                        Position::new(12, 1, 13),
+                        Position::new(27, 1, 28)
+                    ),
+                    parsed_options: None,
+                }))
+            }])
+        )
+    }
+
+    #[test]
+    fn number_arg_skeleton_3() {
+        assert_eq!(
+            Parser::new("{0, number, ::currency/GBP compact-short}").parse(),
+            Ok(vec![AstElement::Number {
+                value: "0",
+                span: Span::new(
+                    Position::new(0, 1, 1),
+                    Position::new(41, 1, 42)
+                ),
+                style: Some(NumberArgStyle::Skeleton(NumberSkeleton {
+                    tokens: vec![
+                        NumberSkeletonToken {
+                            stem: "currency",
+                            options: vec!["GBP"]
+                        },
+                        NumberSkeletonToken {
+                            stem: "compact-short",
+                            options: vec![]
+                        }
+                    ],
+                    span: Span::new(
+                        Position::new(12, 1, 13),
+                        Position::new(40, 1, 41)
+                    ),
+                    parsed_options: None,
+                }))
+            }])
+        )
+    }
+
+    #[test]
+    fn expect_number_arg_skeleton_token_1() {
+        assert_eq!(
+            Parser::new("{0, number, ::").parse(),
+            Err(Error {
+                kind: ErrorKind::ExpectNumberSkeletonToken,
+                message: "{0, number, ::".to_string(),
+                span: Span::new(
+                    Position::new(14, 1, 15),
+                    Position::new(14, 1, 15)
+                )
+            })
+        )
+    }
+
+    #[test]
+    fn expect_number_arg_skeleton_token_option_1() {
+        assert_eq!(
+            Parser::new("{0, number, ::currency/").parse(),
+            Err(Error {
+                kind: ErrorKind::ExpectNumberSkeletonTokenOption,
+                message: "{0, number, ::currency/".to_string(),
+                span: Span::new(
+                    Position::new(23, 1, 24),
+                    Position::new(23, 1, 24)
                 )
             })
         )
