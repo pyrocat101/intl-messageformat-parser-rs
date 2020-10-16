@@ -1,6 +1,6 @@
 use crate::ast::{
-  self, Ast, AstElement, ErrorKind, NumberArgStyle, NumberSkeleton,
-  NumberSkeletonToken, Position, Span,
+    self, Ast, AstElement, ErrorKind, NumberArgStyle, NumberSkeleton,
+    NumberSkeletonToken, Position, Span,
 };
 use crate::pattern_syntax::is_pattern_syntax;
 use std::cell::Cell;
@@ -11,585 +11,586 @@ type Result<T> = result::Result<T, ast::Error>;
 
 #[derive(Clone, Debug)]
 pub struct Parser<'s> {
-  position: Cell<Position>,
-  message: &'s str,
-  should_ignore_tag: bool,
-  // TODO: parser context and parser options
+    position: Cell<Position>,
+    message: &'s str,
+    should_ignore_tag: bool,
+    // TODO: parser context and parser options
 }
 
 impl<'s> Parser<'s> {
-  pub fn new(message: &'s str) -> Parser<'s> {
-    Parser {
-      message,
-      position: Cell::new(Position { offset: 0, line: 1, column: 1 }),
-      // TODO: support configuring this.
-      should_ignore_tag: true,
-    }
-  }
-
-  pub fn parse(&mut self) -> Result<Ast> {
-    assert_eq!(self.offset(), 0, "parser can only be used once");
-    let mut elements: Vec<AstElement> = vec![];
-
-    loop {
-      if self.is_eof() {
-        break;
-      }
-      elements.push(match self.char() {
-        '{' => self.parse_argument()?,
-        _ => self.parse_literal()?,
-      })
-    }
-
-    Ok(elements)
-  }
-
-  fn position(&self) -> Position {
-    self.position.get()
-  }
-
-  fn parse_literal(&self) -> Result<AstElement> {
-    let start = self.position();
-
-    let mut value = String::new();
-    loop {
-      if self.bump_if("''") {
-        value.push('\'');
-      } else if let Some(fragment) = self.try_parse_quote() {
-        value.push_str(&fragment);
-      } else if let Some(fragment) = self.try_parse_unquoted() {
-        value.push(fragment);
-      } else if let Some(fragment) = self.try_parse_left_angle_bracket() {
-        value.push_str(&fragment);
-      } else {
-        // TODO: remove this after more rules are added.
-        assert!(self.is_eof() || self.char() == '{');
-        break;
-      }
-    }
-
-    let span = Span::new(start, self.position());
-    Ok(AstElement::Literal { span, value })
-  }
-
-  /// Starting with ICU 4.8, an ASCII apostrophe only starts quoted text if it immediately precedes
-  /// a character that requires quoting (that is, "only where needed"), and works the same in
-  /// nested messages as on the top level of the pattern. The new behavior is otherwise compatible.
-  fn try_parse_quote(&self) -> Option<String> {
-    if self.is_eof() || self.char() != '\'' {
-      return None;
-    }
-
-    // Parse escaped char following the apostrophe, or early return if there is no escaped char.
-    // TODO
-    let is_in_plural_option = false;
-    // Check if is valis escaped character
-    match self.peek() {
-      Some('{') | Some('<') | Some('>') | Some('}') => (),
-      Some('#') if is_in_plural_option => (),
-      _ => {
-        return None;
-      }
-    }
-
-    self.bump(); // apostrophe
-    let mut value = self.char().to_string(); // escaped char
-    self.bump();
-
-    // read chars until the optional closing apostrophe is found
-    loop {
-      if self.is_eof() {
-        break;
-      }
-      match self.char() {
-        '\'' if self.peek() == Some('\'') => {
-          value.push('\'');
-          // Bump one more time because we need to skip 2 characters.
-          self.bump();
+    pub fn new(message: &'s str) -> Parser<'s> {
+        Parser {
+            message,
+            position: Cell::new(Position { offset: 0, line: 1, column: 1 }),
+            // TODO: support configuring this.
+            should_ignore_tag: true,
         }
-        '\'' => {
-          // Optional closing apostrophe.
-          self.bump();
-          break;
+    }
+
+    pub fn parse(&mut self) -> Result<Ast> {
+        assert_eq!(self.offset(), 0, "parser can only be used once");
+        let mut elements: Vec<AstElement> = vec![];
+
+        loop {
+            if self.is_eof() {
+                break;
+            }
+            elements.push(match self.char() {
+                '{' => self.parse_argument()?,
+                _ => self.parse_literal()?,
+            })
         }
-        c => value.push(c),
-      }
-      self.bump();
+
+        Ok(elements)
     }
 
-    Some(value)
-  }
-
-  fn try_parse_unquoted(&self) -> Option<char> {
-    if self.is_eof() {
-      return None;
+    fn position(&self) -> Position {
+        self.position.get()
     }
-    // TODO
-    let is_in_plural_option = false;
-    let is_in_nested_message_text = false;
-    match self.char() {
-      '<' | '{' => None,
-      '#' if is_in_plural_option => None,
-      '}' if is_in_nested_message_text => None,
-      c => {
+
+    fn parse_literal(&self) -> Result<AstElement> {
+        let start = self.position();
+
+        let mut value = String::new();
+        loop {
+            if self.bump_if("''") {
+                value.push('\'');
+            } else if let Some(fragment) = self.try_parse_quote() {
+                value.push_str(&fragment);
+            } else if let Some(fragment) = self.try_parse_unquoted() {
+                value.push(fragment);
+            } else if let Some(fragment) = self.try_parse_left_angle_bracket() {
+                value.push_str(&fragment);
+            } else {
+                // TODO: remove this after more rules are added.
+                assert!(self.is_eof() || self.char() == '{');
+                break;
+            }
+        }
+
+        let span = Span::new(start, self.position());
+        Ok(AstElement::Literal { span, value })
+    }
+
+    /// Starting with ICU 4.8, an ASCII apostrophe only starts quoted text if it immediately precedes
+    /// a character that requires quoting (that is, "only where needed"), and works the same in
+    /// nested messages as on the top level of the pattern. The new behavior is otherwise compatible.
+    fn try_parse_quote(&self) -> Option<String> {
+        if self.is_eof() || self.char() != '\'' {
+            return None;
+        }
+
+        // Parse escaped char following the apostrophe, or early return if there is no escaped char.
+        // TODO
+        let is_in_plural_option = false;
+        // Check if is valis escaped character
+        match self.peek() {
+            Some('{') | Some('<') | Some('>') | Some('}') => (),
+            Some('#') if is_in_plural_option => (),
+            _ => {
+                return None;
+            }
+        }
+
+        self.bump(); // apostrophe
+        let mut value = self.char().to_string(); // escaped char
         self.bump();
-        Some(c)
-      }
-    }
-  }
 
-  fn try_parse_left_angle_bracket(&self) -> Option<String> {
-    // TODO
-    let should_ignore_tag = false;
+        // read chars until the optional closing apostrophe is found
+        loop {
+            if self.is_eof() {
+                break;
+            }
+            match self.char() {
+                '\'' if self.peek() == Some('\'') => {
+                    value.push('\'');
+                    // Bump one more time because we need to skip 2 characters.
+                    self.bump();
+                }
+                '\'' => {
+                    // Optional closing apostrophe.
+                    self.bump();
+                    break;
+                }
+                c => value.push(c),
+            }
+            self.bump();
+        }
 
-    if self.is_eof() || self.char() != '<' {
-      return None;
-    }
-
-    if !should_ignore_tag {
-      // make sure `<` is not parsed as regular opening angle bracket
-      // NOTE: this requires infinite lookahead...
-      // TODO
-    }
-
-    Some('<'.to_string())
-  }
-
-  fn parse_argument(&self) -> Result<AstElement> {
-    let opening_brace_position = self.position();
-    self.bump(); // `{`
-
-    self.bump_space();
-
-    if self.is_eof() {
-      return Err(self.error(
-        ErrorKind::UnclosedArgumentBrace,
-        Span::new(opening_brace_position, self.position()),
-      ));
+        Some(value)
     }
 
-    if self.char() == '}' {
-      self.bump();
-      return Err(self.error(
-        ErrorKind::EmptyArgument,
-        Span::new(opening_brace_position, self.position()),
-      ));
+    fn try_parse_unquoted(&self) -> Option<char> {
+        if self.is_eof() {
+            return None;
+        }
+        // TODO
+        let is_in_plural_option = false;
+        let is_in_nested_message_text = false;
+        match self.char() {
+            '<' | '{' => None,
+            '#' if is_in_plural_option => None,
+            '}' if is_in_nested_message_text => None,
+            c => {
+                self.bump();
+                Some(c)
+            }
+        }
     }
 
-    // argument name
-    let value = self.parse_identifier_if_possible();
-    if value.is_empty() {
-      return Err(self.error(
-        ErrorKind::MalformedArgument,
-        Span::new(opening_brace_position, self.position()),
-      ));
+    fn try_parse_left_angle_bracket(&self) -> Option<String> {
+        // TODO
+        let should_ignore_tag = false;
+
+        if self.is_eof() || self.char() != '<' {
+            return None;
+        }
+
+        if !should_ignore_tag {
+            // make sure `<` is not parsed as regular opening angle bracket
+            // NOTE: this requires infinite lookahead...
+            // TODO
+        }
+
+        Some('<'.to_string())
     }
 
-    self.bump_space();
+    fn parse_argument(&self) -> Result<AstElement> {
+        let opening_brace_position = self.position();
+        self.bump(); // `{`
 
-    if self.is_eof() {
-      return Err(self.error(
-        ErrorKind::UnclosedArgumentBrace,
-        Span::new(opening_brace_position, self.position()),
-      ));
-    }
-
-    match self.char() {
-      // Simple argument: `{name}`
-      '}' => {
-        self.bump(); // `}`
-
-        Ok(AstElement::Argument {
-          // value does not include the opening and closing braces.
-          value,
-          span: Span::new(opening_brace_position, self.position()),
-        })
-      }
-
-      // Argument with options: `{name, format, ...}`
-      ',' => {
-        self.bump(); // ','
         self.bump_space();
 
         if self.is_eof() {
-          return Err(self.error(
-            ErrorKind::UnclosedArgumentBrace,
-            Span::new(opening_brace_position, self.position()),
-          ));
+            return Err(self.error(
+                ErrorKind::UnclosedArgumentBrace,
+                Span::new(opening_brace_position, self.position()),
+            ));
         }
 
-        self.parse_argument_options(value, opening_brace_position)
-      }
+        if self.char() == '}' {
+            self.bump();
+            return Err(self.error(
+                ErrorKind::EmptyArgument,
+                Span::new(opening_brace_position, self.position()),
+            ));
+        }
 
-      _ => Err(self.error(
-        ErrorKind::MalformedArgument,
-        Span::new(opening_brace_position, self.position()),
-      )),
+        // argument name
+        let value = self.parse_identifier_if_possible();
+        if value.is_empty() {
+            return Err(self.error(
+                ErrorKind::MalformedArgument,
+                Span::new(opening_brace_position, self.position()),
+            ));
+        }
+
+        self.bump_space();
+
+        if self.is_eof() {
+            return Err(self.error(
+                ErrorKind::UnclosedArgumentBrace,
+                Span::new(opening_brace_position, self.position()),
+            ));
+        }
+
+        match self.char() {
+            // Simple argument: `{name}`
+            '}' => {
+                self.bump(); // `}`
+
+                Ok(AstElement::Argument {
+                    // value does not include the opening and closing braces.
+                    value,
+                    span: Span::new(opening_brace_position, self.position()),
+                })
+            }
+
+            // Argument with options: `{name, format, ...}`
+            ',' => {
+                self.bump(); // ','
+                self.bump_space();
+
+                if self.is_eof() {
+                    return Err(self.error(
+                        ErrorKind::UnclosedArgumentBrace,
+                        Span::new(opening_brace_position, self.position()),
+                    ));
+                }
+
+                self.parse_argument_options(value, opening_brace_position)
+            }
+
+            _ => Err(self.error(
+                ErrorKind::MalformedArgument,
+                Span::new(opening_brace_position, self.position()),
+            )),
+        }
     }
-  }
 
-  fn parse_argument_options(
-    &'s self,
-    value: &'s str,
-    opening_brace_position: Position,
-  ) -> Result<AstElement> {
-    // Parse this range:
-    // {name, type, style}
-    //        ^---^
-    let type_starting_position = self.position();
-    let _type = self.parse_identifier_if_possible();
-    let type_end_position = self.position();
+    fn parse_argument_options(
+        &'s self,
+        value: &'s str,
+        opening_brace_position: Position,
+    ) -> Result<AstElement> {
+        // Parse this range:
+        // {name, type, style}
+        //        ^---^
+        let type_starting_position = self.position();
+        let _type = self.parse_identifier_if_possible();
+        let type_end_position = self.position();
 
-    match _type {
-      "" => {
-        // Expecting a style string number, date, time, plural, selectordinal, or select.
-        Err(self.error(
-          ErrorKind::ExpectArgumentType,
-          Span::new(type_starting_position, type_end_position),
-        ))
-      }
+        match _type {
+            "" => {
+                // Expecting a style string number, date, time, plural, selectordinal, or select.
+                Err(self.error(
+                    ErrorKind::ExpectArgumentType,
+                    Span::new(type_starting_position, type_end_position),
+                ))
+            }
 
-      "number" => {
+            "number" => {
+                // Parse this range:
+                // {name, number, style}
+                //              ^-------^
+                self.bump_space();
+
+                let style = if !self.is_eof() && self.char() == ',' {
+                    Some(self.parse_number_arg_style()?)
+                } else {
+                    None
+                };
+
+                self.try_parse_argument_close(opening_brace_position)?;
+
+                // TODO: support number arg style
+                Ok(AstElement::Number {
+                    value,
+                    span: Span::new(opening_brace_position, self.position()),
+                    style,
+                })
+            }
+
+            "date" | "time" => {
+                self.bump_space();
+                self.try_parse_argument_close(opening_brace_position)?;
+
+                let span = Span::new(opening_brace_position, self.position());
+                // TODO: support date / time arg style
+                if _type == "date" {
+                    Ok(AstElement::Date { value, span, style: None })
+                } else {
+                    Ok(AstElement::Time { value, span, style: None })
+                }
+            }
+
+            // TODO: support these
+            // "plural" | "selectordinal" => {}
+            // "select" => {}
+            _ => Err(self.error(
+                ErrorKind::InvalidArgumentType,
+                Span::new(type_starting_position, type_end_position),
+            )),
+        }
+    }
+
+    fn parse_number_arg_style(&self) -> Result<NumberArgStyle> {
+        self.bump(); // `,`
+        self.bump_space();
+
         // Parse this range:
         // {name, number, style}
-        //              ^-------^
-        self.bump_space();
+        //                ^----^
+        let style_start_position = self.position();
 
-        let style = if !self.is_eof() && self.char() == ',' {
-          Some(self.parse_number_arg_style()?)
+        if self.bump_if("::") {
+            self.bump_space();
+            // A skeleton starts with `::`.
+            Ok(NumberArgStyle::Skeleton(
+                self.try_parse_number_skeleton_body(style_start_position)?,
+            ))
         } else {
-          None
-        };
+            // An identifier as style
+            // TODO: check with ICU4c
+            let style_string =
+                self.parse_simple_arg_style_if_possible(false)?;
+            if style_string.is_empty() {
+                return Err(self.error(
+                    ErrorKind::ExpectNumberStyle,
+                    Span::new(style_start_position, style_start_position),
+                ));
+            }
+            Ok(NumberArgStyle::Style(style_string))
+        }
+    }
 
-        self.try_parse_argument_close(opening_brace_position)?;
+    /// See: https://github.com/unicode-org/icu/blob/af7ed1f6d2298013dc303628438ec4abe1f16479/icu4c/source/common/messagepattern.cpp#L659
+    fn parse_simple_arg_style_if_possible(
+        &self,
+        stop_at_slash: bool,
+    ) -> Result<&str> {
+        let mut nested_braces = 0;
 
-        // TODO: support number arg style
-        Ok(AstElement::Number {
-          value,
-          span: Span::new(opening_brace_position, self.position()),
-          style,
+        let start_position = self.position();
+        while !self.is_eof() {
+            match self.char() {
+                c if c.is_whitespace() => {
+                    break;
+                }
+                '\'' => {
+                    // Treat apostrophe as quoting but include it in the style part.
+                    // Find the end of the quoted literal text.
+                    self.bump();
+                    let apostrophe_position = self.position();
+                    if !self.bump_until('\'') {
+                        return Err(self.error(
+                            ErrorKind::UnclosedQuoteInArgumentStyle,
+                            Span::new(apostrophe_position, self.position()),
+                        ));
+                    }
+                    self.bump();
+                }
+                '{' => {
+                    nested_braces += 1;
+                    self.bump();
+                }
+                '}' => {
+                    if nested_braces > 0 {
+                        nested_braces -= 1;
+                    } else {
+                        break;
+                    }
+                }
+                '/' if stop_at_slash => break,
+                _ => {
+                    self.bump();
+                }
+            }
+        }
+
+        Ok(&self.message[start_position.offset..self.position().offset])
+    }
+
+    // TODO: check with ICU4c
+    // TODO: support more concise syntax in ICU 67
+    fn try_parse_number_skeleton_body(
+        &self,
+        style_start_position: Position,
+    ) -> Result<NumberSkeleton> {
+        let first_token =
+            self.try_parse_number_skeleton_token()?.ok_or_else(|| {
+                self.error(
+                    ErrorKind::ExpectNumberSkeletonToken,
+                    Span::new(self.position(), self.position()),
+                )
+            })?;
+
+        let mut tokens = vec![first_token];
+        loop {
+            self.bump_space();
+            match self.try_parse_number_skeleton_token()? {
+                None => break,
+                Some(token_result) => tokens.push(token_result),
+            }
+        }
+
+        Ok(NumberSkeleton {
+            tokens,
+            span: Span::new(style_start_position, self.position()),
+            parsed_options: None,
         })
-      }
-
-      "date" | "time" => {
-        self.bump_space();
-        self.try_parse_argument_close(opening_brace_position)?;
-
-        let span = Span::new(opening_brace_position, self.position());
-        // TODO: support date / time arg style
-        if _type == "date" {
-          Ok(AstElement::Date { value, span, style: None })
-        } else {
-          Ok(AstElement::Time { value, span, style: None })
-        }
-      }
-
-      // TODO: support these
-      // "plural" | "selectordinal" => {}
-      // "select" => {}
-      _ => Err(self.error(
-        ErrorKind::InvalidArgumentType,
-        Span::new(type_starting_position, type_end_position),
-      )),
     }
-  }
 
-  fn parse_number_arg_style(&self) -> Result<NumberArgStyle> {
-    self.bump(); // `,`
-    self.bump_space();
-
-    // Parse this range:
-    // {name, number, style}
-    //                ^----^
-    let style_start_position = self.position();
-
-    if self.bump_if("::") {
-      self.bump_space();
-      // A skeleton starts with `::`.
-      Ok(NumberArgStyle::Skeleton(
-        self.try_parse_number_skeleton_body(style_start_position)?,
-      ))
-    } else {
-      // An identifier as style
-      // TODO: check with ICU4c
-      let style_string = self.parse_simple_arg_style_if_possible(false)?;
-      if style_string.is_empty() {
-        return Err(self.error(
-          ErrorKind::ExpectNumberStyle,
-          Span::new(style_start_position, style_start_position),
-        ));
-      }
-      Ok(NumberArgStyle::Style(style_string))
-    }
-  }
-
-  /// See: https://github.com/unicode-org/icu/blob/af7ed1f6d2298013dc303628438ec4abe1f16479/icu4c/source/common/messagepattern.cpp#L659
-  fn parse_simple_arg_style_if_possible(
-    &self,
-    stop_at_slash: bool,
-  ) -> Result<&str> {
-    let mut nested_braces = 0;
-
-    let start_position = self.position();
-    while !self.is_eof() {
-      match self.char() {
-        c if c.is_whitespace() => {
-          break;
+    fn try_parse_number_skeleton_token(
+        &self,
+    ) -> Result<Option<NumberSkeletonToken>> {
+        // Parse: currency/GBP
+        //        ^-------^
+        let stem = self.parse_simple_arg_style_if_possible(true)?;
+        if stem.is_empty() {
+            return Ok(None);
         }
-        '\'' => {
-          // Treat apostrophe as quoting but include it in the style part.
-          // Find the end of the quoted literal text.
-          self.bump();
-          let apostrophe_position = self.position();
-          if !self.bump_until('\'') {
+
+        let mut options: Vec<&str> = vec![];
+        while self.bump_if("/") {
+            // Parse: currency/GBP
+            //                 ^--^
+            let option = self.parse_simple_arg_style_if_possible(true)?;
+            if option.is_empty() {
+                return Err(self.error(
+                    ErrorKind::ExpectNumberSkeletonTokenOption,
+                    Span::new(self.position(), self.position()),
+                ));
+            }
+            options.push(option);
+        }
+
+        Ok(Some(NumberSkeletonToken { stem, options }))
+    }
+
+    fn try_parse_argument_close(
+        &self,
+        opening_brace_position: Position,
+    ) -> Result<()> {
+        // Parse: {value, number, ::currency/GBP }
+        //                                      ^-^
+        if self.is_eof() {
             return Err(self.error(
-              ErrorKind::UnclosedQuoteInArgumentStyle,
-              Span::new(apostrophe_position, self.position()),
+                ErrorKind::UnclosedArgumentBrace,
+                Span::new(opening_brace_position, self.position()),
             ));
-          }
-          self.bump();
         }
-        '{' => {
-          nested_braces += 1;
-          self.bump();
+
+        if self.char() != '}' {
+            return Err(self.error(
+                ErrorKind::MalformedArgument,
+                Span::new(opening_brace_position, self.position()),
+            ));
         }
-        '}' => {
-          if nested_braces > 0 {
-            nested_braces -= 1;
-          } else {
-            break;
-          }
+        self.bump(); // `}`
+
+        Ok(())
+    }
+
+    /// Advance the parser until the end of the identifier, if it is currently on
+    /// an identifier character. Return an empty string otherwise.
+    fn parse_identifier_if_possible(&self) -> &str {
+        let starting_position = self.position();
+
+        while !self.is_eof()
+            && !self.char().is_whitespace()
+            && !is_pattern_syntax(self.char())
+        {
+            self.bump();
         }
-        '/' if stop_at_slash => break,
-        _ => {
-          self.bump();
+
+        let end_position = self.position();
+
+        &self.message[starting_position.offset..end_position.offset]
+    }
+
+    fn error(&self, kind: ErrorKind, span: Span) -> ast::Error {
+        ast::Error { kind, message: self.message.to_string(), span }
+    }
+
+    fn offset(&self) -> usize {
+        self.position().offset
+    }
+
+    /// Return the character at the current position of the parser.
+    ///
+    /// This panics if the current position does not point to a valid char.
+    fn char(&self) -> char {
+        self.char_at(self.offset())
+    }
+
+    /// Return the character at the given position.
+    ///
+    /// This panics if the given position does not point to a valid char.
+    fn char_at(&self, i: usize) -> char {
+        self.message[i..]
+            .chars()
+            .next()
+            .unwrap_or_else(|| panic!("expected char at offset {}", i))
+    }
+
+    /// Bump the parser to the next Unicode scalar value.
+    ///
+    /// If the end of the input has been reached after bump, then `false` is returned.
+    fn bump(&self) -> bool {
+        if self.is_eof() {
+            return false;
         }
-      }
+        let Position { mut offset, mut line, mut column } = self.position();
+        if self.char() == '\n' {
+            line = line.checked_add(1).unwrap();
+            column = 1;
+        } else {
+            column = column.checked_add(1).unwrap();
+        }
+        offset += self.char().len_utf8();
+        self.position.set(Position { offset, line, column });
+        self.message[self.offset()..].chars().next().is_some()
     }
 
-    Ok(&self.message[start_position.offset..self.position().offset])
-  }
+    /// Bump the parser to the target offset.
+    ///
+    /// If target offset is beyond the end of the input, bump the parser to the end of the input.
+    fn bump_to(&self, target_offset: usize) {
+        assert!(
+            self.offset() < target_offset,
+            "target_offset {} must be greater than the current offset {})",
+            target_offset,
+            self.offset()
+        );
 
-  // TODO: check with ICU4c
-  // TODO: support more concise syntax in ICU 67
-  fn try_parse_number_skeleton_body(
-    &self,
-    style_start_position: Position,
-  ) -> Result<NumberSkeleton> {
-    let first_token =
-      self.try_parse_number_skeleton_token()?.ok_or_else(|| {
-        self.error(
-          ErrorKind::ExpectNumberSkeletonToken,
-          Span::new(self.position(), self.position()),
-        )
-      })?;
+        let target_offset = cmp::min(target_offset, self.message.len());
+        loop {
+            let offset = self.offset();
 
-    let mut tokens = vec![first_token];
-    loop {
-      self.bump_space();
-      match self.try_parse_number_skeleton_token()? {
-        None => break,
-        Some(token_result) => tokens.push(token_result),
-      }
+            if self.offset() == target_offset {
+                break;
+            }
+            assert!(
+                offset < target_offset,
+                "target_offset is at invalid unicode byte boundary: {}",
+                target_offset
+            );
+
+            let has_more = self.bump();
+            if !has_more {
+                break;
+            }
+        }
     }
 
-    Ok(NumberSkeleton {
-      tokens,
-      span: Span::new(style_start_position, self.position()),
-      parsed_options: None,
-    })
-  }
-
-  fn try_parse_number_skeleton_token(
-    &self,
-  ) -> Result<Option<NumberSkeletonToken>> {
-    // Parse: currency/GBP
-    //        ^-------^
-    let stem = self.parse_simple_arg_style_if_possible(true)?;
-    if stem.is_empty() {
-      return Ok(None);
+    /// If the substring starting at the current position of the parser has
+    /// the given prefix, then bump the parser to the character immediately
+    /// following the prefix and return true. Otherwise, don't bump the parser
+    /// and return false.
+    fn bump_if(&self, prefix: &str) -> bool {
+        if self.message[self.offset()..].starts_with(prefix) {
+            for _ in 0..prefix.chars().count() {
+                self.bump();
+            }
+            true
+        } else {
+            false
+        }
     }
 
-    let mut options: Vec<&str> = vec![];
-    while self.bump_if("/") {
-      // Parse: currency/GBP
-      //                 ^--^
-      let option = self.parse_simple_arg_style_if_possible(true)?;
-      if option.is_empty() {
-        return Err(self.error(
-          ErrorKind::ExpectNumberSkeletonTokenOption,
-          Span::new(self.position(), self.position()),
-        ));
-      }
-      options.push(option);
+    /// Bump the parser until the pattern character is found and return `true`.
+    /// Otherwise bump to the end of the file and return `false`.
+    fn bump_until(&self, pattern: char) -> bool {
+        let current_offset = self.offset();
+        if let Some(delta) = self.message[current_offset..].find(pattern) {
+            self.bump_to(current_offset + delta);
+            true
+        } else {
+            self.bump_to(self.message.len());
+            false
+        }
     }
 
-    Ok(Some(NumberSkeletonToken { stem, options }))
-  }
-
-  fn try_parse_argument_close(
-    &self,
-    opening_brace_position: Position,
-  ) -> Result<()> {
-    // Parse: {value, number, ::currency/GBP }
-    //                                      ^-^
-    if self.is_eof() {
-      return Err(self.error(
-        ErrorKind::UnclosedArgumentBrace,
-        Span::new(opening_brace_position, self.position()),
-      ));
+    /// advance the parser through all whitespace to the next non-whitespace byte.
+    fn bump_space(&self) {
+        while !self.is_eof() && self.char().is_whitespace() {
+            self.bump();
+        }
     }
 
-    if self.char() != '}' {
-      return Err(self.error(
-        ErrorKind::MalformedArgument,
-        Span::new(opening_brace_position, self.position()),
-      ));
-    }
-    self.bump(); // `}`
-
-    Ok(())
-  }
-
-  /// Advance the parser until the end of the identifier, if it is currently on
-  /// an identifier character. Return an empty string otherwise.
-  fn parse_identifier_if_possible(&self) -> &str {
-    let starting_position = self.position();
-
-    while !self.is_eof()
-      && !self.char().is_whitespace()
-      && !is_pattern_syntax(self.char())
-    {
-      self.bump();
+    /// Peek at the *next* character in the input without advancing the parser.
+    ///
+    /// If the input has been exhausted, then this returns `None`.
+    fn peek(&self) -> Option<char> {
+        if self.is_eof() {
+            return None;
+        }
+        self.message[self.offset() + self.char().len_utf8()..].chars().next()
     }
 
-    let end_position = self.position();
-
-    &self.message[starting_position.offset..end_position.offset]
-  }
-
-  fn error(&self, kind: ErrorKind, span: Span) -> ast::Error {
-    ast::Error { kind, message: self.message.to_string(), span }
-  }
-
-  fn offset(&self) -> usize {
-    self.position().offset
-  }
-
-  /// Return the character at the current position of the parser.
-  ///
-  /// This panics if the current position does not point to a valid char.
-  fn char(&self) -> char {
-    self.char_at(self.offset())
-  }
-
-  /// Return the character at the given position.
-  ///
-  /// This panics if the given position does not point to a valid char.
-  fn char_at(&self, i: usize) -> char {
-    self.message[i..]
-      .chars()
-      .next()
-      .unwrap_or_else(|| panic!("expected char at offset {}", i))
-  }
-
-  /// Bump the parser to the next Unicode scalar value.
-  ///
-  /// If the end of the input has been reached after bump, then `false` is returned.
-  fn bump(&self) -> bool {
-    if self.is_eof() {
-      return false;
+    /// Returns true if the next call to `bump` would return false.
+    fn is_eof(&self) -> bool {
+        self.offset() == self.message.len()
     }
-    let Position { mut offset, mut line, mut column } = self.position();
-    if self.char() == '\n' {
-      line = line.checked_add(1).unwrap();
-      column = 1;
-    } else {
-      column = column.checked_add(1).unwrap();
-    }
-    offset += self.char().len_utf8();
-    self.position.set(Position { offset, line, column });
-    self.message[self.offset()..].chars().next().is_some()
-  }
-
-  /// Bump the parser to the target offset.
-  ///
-  /// If target offset is beyond the end of the input, bump the parser to the end of the input.
-  fn bump_to(&self, target_offset: usize) {
-    assert!(
-      self.offset() < target_offset,
-      "target_offset {} must be greater than the current offset {})",
-      target_offset,
-      self.offset()
-    );
-
-    let target_offset = cmp::min(target_offset, self.message.len());
-    loop {
-      let offset = self.offset();
-
-      if self.offset() == target_offset {
-        break;
-      }
-      assert!(
-        offset < target_offset,
-        "target_offset is at invalid unicode byte boundary: {}",
-        target_offset
-      );
-
-      let has_more = self.bump();
-      if !has_more {
-        break;
-      }
-    }
-  }
-
-  /// If the substring starting at the current position of the parser has
-  /// the given prefix, then bump the parser to the character immediately
-  /// following the prefix and return true. Otherwise, don't bump the parser
-  /// and return false.
-  fn bump_if(&self, prefix: &str) -> bool {
-    if self.message[self.offset()..].starts_with(prefix) {
-      for _ in 0..prefix.chars().count() {
-        self.bump();
-      }
-      true
-    } else {
-      false
-    }
-  }
-
-  /// Bump the parser until the pattern character is found and return `true`.
-  /// Otherwise bump to the end of the file and return `false`.
-  fn bump_until(&self, pattern: char) -> bool {
-    let current_offset = self.offset();
-    if let Some(delta) = self.message[current_offset..].find(pattern) {
-      self.bump_to(current_offset + delta);
-      true
-    } else {
-      self.bump_to(self.message.len());
-      false
-    }
-  }
-
-  /// advance the parser through all whitespace to the next non-whitespace byte.
-  fn bump_space(&self) {
-    while !self.is_eof() && self.char().is_whitespace() {
-      self.bump();
-    }
-  }
-
-  /// Peek at the *next* character in the input without advancing the parser.
-  ///
-  /// If the input has been exhausted, then this returns `None`.
-  fn peek(&self) -> Option<char> {
-    if self.is_eof() {
-      return None;
-    }
-    self.message[self.offset() + self.char().len_utf8()..].chars().next()
-  }
-
-  /// Returns true if the next call to `bump` would return false.
-  fn is_eof(&self) -> bool {
-    self.offset() == self.message.len()
-  }
 }
