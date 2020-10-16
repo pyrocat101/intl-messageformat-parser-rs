@@ -684,9 +684,174 @@ mod tests {
                 message: "{0, number, ::currency/".to_string(),
                 span: Span::new(
                     Position::new(23, 1, 24),
-                    Position::new(23, 1, 24)
+                    Position::new(23, 1, 24),
                 )
             })
         )
+    }
+
+    mod number_skeleton_tests {
+        use super::*;
+
+        /// Convenient macro to help parametrize tests with number skeleton strings.
+        macro_rules! number_skeleton_tests {
+            ($($name:ident: $value:expr,)*) => {
+                $(
+                    #[test]
+                    fn $name() {
+                        let (skeleton, expected_tokens) = $value;
+                        let message = format!("{{0, number, ::{}}}", skeleton);
+                        match Parser::new(&message[..]).parse() {
+                            Ok(ast_elements) => {
+                                match &ast_elements[..] {
+                                    [AstElement::Number {
+                                        style: Some(NumberArgStyle::Skeleton(NumberSkeleton {
+                                            tokens: tokens,
+                                            ..
+                                        })),
+                                        ..
+                                    }] => {
+                                        assert_eq!(expected_tokens, tokens)
+                                    }
+                                    _ => panic!("Failed to parse {}", message)
+                                }
+                            },
+                            _ => panic!("Failed to parse {}", message)
+                        }
+                    }
+                )*
+            }
+        }
+
+        number_skeleton_tests! {
+            case_0: ("compact-short currency/GBP", &vec![
+                NumberSkeletonToken {
+                    stem: "compact-short",
+                    options: vec![],
+                },
+                NumberSkeletonToken {
+                    stem: "currency",
+                    options: vec!["GBP"],
+                }
+            ]),
+            case_1: ("@@#", &vec![
+                NumberSkeletonToken {
+                    stem: "@@#",
+                    options: vec![],
+                },
+            ]),
+            case_2: ("currency/CAD unit-width-narrow", &vec![
+                NumberSkeletonToken {
+                    stem: "currency",
+                    options: vec!["CAD"],
+                },
+                NumberSkeletonToken {
+                    stem: "unit-width-narrow",
+                    options: vec![],
+                }
+            ]),
+            case_3: ("percent .##", &vec![
+                NumberSkeletonToken {
+                    stem: "percent",
+                    options: vec![],
+                },
+                NumberSkeletonToken {
+                    stem: ".##",
+                    options: vec![],
+                },
+            ]),
+
+            // Some percent skeletons
+            case_4: ("percent .000*", &vec![
+                NumberSkeletonToken {
+                    stem: "percent",
+                    options: vec![],
+                },
+                NumberSkeletonToken {
+                    stem: ".000*",
+                    options: vec![],
+                },
+            ]),
+            case_5: ("percent .0###", &vec![
+                NumberSkeletonToken {
+                    stem: "percent",
+                    options: vec![],
+                },
+                NumberSkeletonToken {
+                    stem: ".0###",
+                    options: vec![],
+                },
+            ]),
+            case_6: ("percent .00/@##", &vec![
+                NumberSkeletonToken {
+                    stem: "percent",
+                    options: vec![],
+                },
+                NumberSkeletonToken {
+                    stem: ".00",
+                    options: vec!["@##"],
+                },
+            ]),
+            case_7: ("percent .00/@@@", &vec![
+                NumberSkeletonToken {
+                    stem: "percent",
+                    options: vec![],
+                },
+                NumberSkeletonToken {
+                    stem: ".00",
+                    options: vec!["@@@"],
+                },
+            ]),
+            case_8: ("percent .00/@@@@*", &vec![
+                NumberSkeletonToken {
+                    stem: "percent",
+                    options: vec![],
+                },
+                NumberSkeletonToken {
+                    stem: ".00",
+                    options: vec!["@@@@*"],
+                },
+            ]),
+
+            // Complex currency skeleton
+            case_9: ("currency/GBP .00##/@@@ unit-width-full-name", &vec![
+                NumberSkeletonToken {
+                    stem: "currency",
+                    options: vec!["GBP"],
+                },
+                NumberSkeletonToken {
+                    stem: ".00##",
+                    options: vec!["@@@"],
+                },
+                NumberSkeletonToken {
+                    stem: "unit-width-full-name",
+                    options: vec![],
+                },
+            ]),
+
+            // Complex unit
+            case_10: ("measure-unit/length-meter .00##/@@@ unit-width-full-name", &vec![
+                NumberSkeletonToken {
+                    stem: "measure-unit",
+                    options: vec!["length-meter"],
+                },
+                NumberSkeletonToken {
+                    stem: ".00##",
+                    options: vec!["@@@"],
+                },
+                NumberSkeletonToken {
+                    stem: "unit-width-full-name",
+                    options: vec![],
+                },
+            ]),
+
+            // Multiple options
+            case_11: ("scientific/+ee/sign-always", &vec![
+                NumberSkeletonToken {
+                    stem: "scientific",
+                    options: vec!["+ee", "sign-always"],
+                },
+            ]),
+        }
     }
 }
