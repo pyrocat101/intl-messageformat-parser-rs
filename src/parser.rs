@@ -1,7 +1,4 @@
-use crate::ast::{
-    self, Ast, AstElement, ErrorKind, NumberArgStyle, NumberSkeleton,
-    NumberSkeletonToken, Position, Span,
-};
+use crate::ast::{self, *};
 use crate::pattern_syntax::is_pattern_syntax;
 use std::cell::Cell;
 use std::cmp;
@@ -263,7 +260,6 @@ impl<'s> Parser<'s> {
 
                 self.try_parse_argument_close(opening_brace_position)?;
 
-                // TODO: support number arg style
                 Ok(AstElement::Number {
                     value,
                     span: Span::new(opening_brace_position, self.position()),
@@ -273,14 +269,20 @@ impl<'s> Parser<'s> {
 
             "date" | "time" => {
                 self.bump_space();
+
+                let style = if !self.is_eof() && self.char() == ',' {
+                    Some(self.parse_date_time_arg_style()?)
+                } else {
+                    None
+                };
+
                 self.try_parse_argument_close(opening_brace_position)?;
 
                 let span = Span::new(opening_brace_position, self.position());
-                // TODO: support date / time arg style
                 if _type == "date" {
-                    Ok(AstElement::Date { value, span, style: None })
+                    Ok(AstElement::Date { value, span, style })
                 } else {
-                    Ok(AstElement::Time { value, span, style: None })
+                    Ok(AstElement::Time { value, span, style })
                 }
             }
 
@@ -294,6 +296,39 @@ impl<'s> Parser<'s> {
         }
     }
 
+    fn parse_date_time_arg_style(&self) -> Result<DateTimeArgStyle> {
+        self.bump(); // `,`
+        self.bump_space();
+
+        // Parse this range:
+        // {name, date, style}
+        //              ^----^
+        let style_start_position = self.position();
+
+        // A skeleton starts with `::`.
+        if self.bump_if("::") {
+            // An identifier as style
+            let style_string = self.parse_simple_arg_style_if_possible(false)?;
+            if style_string.is_empty() {
+                return Err(self.error(
+                    ErrorKind::ExpectDateTimeSkeleton,
+                    Span::new(style_start_position, style_start_position),
+                ));
+            }
+            Ok(DateTimeArgStyle::Style(style_string))
+        } else {
+            // An identifier as style
+            let style_string = self.parse_simple_arg_style_if_possible(false)?;
+            if style_string.is_empty() {
+                return Err(self.error(
+                    ErrorKind::ExpectDateTimeStyle,
+                    Span::new(style_start_position, style_start_position),
+                ));
+            }
+            Ok(DateTimeArgStyle::Style(style_string))
+        }
+    }
+
     fn parse_number_arg_style(&self) -> Result<NumberArgStyle> {
         self.bump(); // `,`
         self.bump_space();
@@ -303,17 +338,13 @@ impl<'s> Parser<'s> {
         //                ^----^
         let style_start_position = self.position();
 
+        // A skeleton starts with `::`.
         if self.bump_if("::") {
             self.bump_space();
-            // A skeleton starts with `::`.
-            Ok(NumberArgStyle::Skeleton(
-                self.try_parse_number_skeleton_body(style_start_position)?,
-            ))
+            Ok(NumberArgStyle::Skeleton(self.try_parse_number_skeleton_body(style_start_position)?))
         } else {
             // An identifier as style
-            // TODO: check with ICU4c
-            let style_string =
-                self.parse_simple_arg_style_if_possible(false)?;
+            let style_string = self.parse_simple_arg_style_if_possible(false)?;
             if style_string.is_empty() {
                 return Err(self.error(
                     ErrorKind::ExpectNumberStyle,
@@ -325,10 +356,7 @@ impl<'s> Parser<'s> {
     }
 
     /// See: https://github.com/unicode-org/icu/blob/af7ed1f6d2298013dc303628438ec4abe1f16479/icu4c/source/common/messagepattern.cpp#L659
-    fn parse_simple_arg_style_if_possible(
-        &self,
-        stop_at_slash: bool,
-    ) -> Result<&str> {
+    fn parse_simple_arg_style_if_possible(&self, stop_at_slash: bool) -> Result<&str> {
         let mut nested_braces = 0;
 
         let start_position = self.position();
@@ -371,19 +399,16 @@ impl<'s> Parser<'s> {
         Ok(&self.message[start_position.offset..self.position().offset])
     }
 
-    // TODO: check with ICU4c
-    // TODO: support more concise syntax in ICU 67
     fn try_parse_number_skeleton_body(
         &self,
         style_start_position: Position,
     ) -> Result<NumberSkeleton> {
-        let first_token =
-            self.try_parse_number_skeleton_token()?.ok_or_else(|| {
-                self.error(
-                    ErrorKind::ExpectNumberSkeletonToken,
-                    Span::new(self.position(), self.position()),
-                )
-            })?;
+        let first_token = self.try_parse_number_skeleton_token()?.ok_or_else(|| {
+            self.error(
+                ErrorKind::ExpectNumberSkeletonToken,
+                Span::new(self.position(), self.position()),
+            )
+        })?;
 
         let mut tokens = vec![first_token];
         loop {
@@ -401,9 +426,7 @@ impl<'s> Parser<'s> {
         })
     }
 
-    fn try_parse_number_skeleton_token(
-        &self,
-    ) -> Result<Option<NumberSkeletonToken>> {
+    fn try_parse_number_skeleton_token(&self) -> Result<Option<NumberSkeletonToken>> {
         // Parse: currency/GBP
         //        ^-------^
         let stem = self.parse_simple_arg_style_if_possible(true)?;
@@ -428,10 +451,7 @@ impl<'s> Parser<'s> {
         Ok(Some(NumberSkeletonToken { stem, options }))
     }
 
-    fn try_parse_argument_close(
-        &self,
-        opening_brace_position: Position,
-    ) -> Result<()> {
+    fn try_parse_argument_close(&self, opening_brace_position: Position) -> Result<()> {
         // Parse: {value, number, ::currency/GBP }
         //                                      ^-^
         if self.is_eof() {
@@ -457,10 +477,7 @@ impl<'s> Parser<'s> {
     fn parse_identifier_if_possible(&self) -> &str {
         let starting_position = self.position();
 
-        while !self.is_eof()
-            && !self.char().is_whitespace()
-            && !is_pattern_syntax(self.char())
-        {
+        while !self.is_eof() && !self.char().is_whitespace() && !is_pattern_syntax(self.char()) {
             self.bump();
         }
 
@@ -488,10 +505,7 @@ impl<'s> Parser<'s> {
     ///
     /// This panics if the given position does not point to a valid char.
     fn char_at(&self, i: usize) -> char {
-        self.message[i..]
-            .chars()
-            .next()
-            .unwrap_or_else(|| panic!("expected char at offset {}", i))
+        self.message[i..].chars().next().unwrap_or_else(|| panic!("expected char at offset {}", i))
     }
 
     /// Bump the parser to the next Unicode scalar value.

@@ -16,10 +16,14 @@ pub enum ErrorKind {
     InvalidArgumentType,
     /// Expect a number argument style (e.g. `{foo, number, }`)
     ExpectNumberStyle,
+    /// Expect a date / time argument style (e.g. `{foo, time, }`)
+    ExpectDateTimeStyle,
     /// Expect a number skeleton token following the `::` (e.g. `{foo, number, ::}`})
     ExpectNumberSkeletonToken,
     /// Expect a number skeleton token options following the slash (e.g. `{foo, number, ::currency/}`)
     ExpectNumberSkeletonTokenOption,
+    /// Exepct a date time skeleton following the `::` (e.g. `{foo, date, ::}`)
+    ExpectDateTimeSkeleton,
     /// Unmatched apostrophes in the argument style (e.g. `{foo, number, 'test`)
     UnclosedQuoteInArgumentStyle,
 }
@@ -43,11 +47,7 @@ impl Position {
 
 impl fmt::Debug for Position {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Position(o: {:?}, l: {:?}, c: {:?})",
-            self.offset, self.line, self.column
-        )
+        write!(f, "Position(o: {:?}, l: {:?}, c: {:?})", self.offset, self.line, self.column)
     }
 }
 
@@ -106,17 +106,9 @@ pub enum AstElement<'s> {
     /// Variable w/ time format
     Time { value: &'s str, span: Span, style: Option<DateTimeArgStyle<'s>> },
     /// Variable w/ select format
-    Select {
-        value: &'s str,
-        span: Span,
-        options: Vec<(&'s str, PluralOrSelectOption<'s>)>,
-    },
+    Select { value: &'s str, span: Span, options: Vec<(&'s str, PluralOrSelectOption<'s>)> },
     /// Variable w/ plural format
-    Plural {
-        value: &'s str,
-        span: Span,
-        options: Vec<(&'s str, PluralOrSelectOption<'s>)>,
-    },
+    Plural { value: &'s str, span: Span, options: Vec<(&'s str, PluralOrSelectOption<'s>)> },
     /// XML-like tag
     Tag { value: &'s str, span: Span, children: Box<AstElement<'s>> },
     /// Only possible within plural argument.

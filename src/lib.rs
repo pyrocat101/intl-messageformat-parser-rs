@@ -51,24 +51,15 @@ mod tests {
             Ok(vec![
                 AstElement::Literal {
                     value: "a ".to_string(),
-                    span: Span::new(
-                        Position::new(0, 1, 1),
-                        Position::new(2, 1, 3)
-                    )
+                    span: Span::new(Position::new(0, 1, 1), Position::new(2, 1, 3))
                 },
                 AstElement::Argument {
                     value: "b",
-                    span: Span::new(
-                        Position::new(2, 1, 3),
-                        Position::new(5, 1, 6)
-                    )
+                    span: Span::new(Position::new(2, 1, 3), Position::new(5, 1, 6))
                 },
                 AstElement::Literal {
                     value: " \nc".to_string(),
-                    span: Span::new(
-                        Position::new(5, 1, 6),
-                        Position::new(8, 2, 2)
-                    )
+                    span: Span::new(Position::new(5, 1, 6), Position::new(8, 2, 2))
                 },
             ])
         );
@@ -157,10 +148,7 @@ mod tests {
             Parser::new("I don't know").parse(),
             Ok(vec![AstElement::Literal {
                 value: "I don't know".to_string(),
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(12, 1, 13)
-                )
+                span: Span::new(Position::new(0, 1, 1), Position::new(12, 1, 13))
             }])
         )
     }
@@ -172,10 +160,7 @@ mod tests {
             Parser::new("a '{a{ {}{}{} ''bb").parse(),
             Ok(vec![AstElement::Literal {
                 value: "a {a{ {}{}{} 'bb".to_string(),
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(18, 1, 19)
-                )
+                span: Span::new(Position::new(0, 1, 1), Position::new(18, 1, 19))
             }])
         )
     }
@@ -202,10 +187,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::EmptyArgument,
                 message: "a '{a{ {}{}{}}}''' \n {}".to_string(),
-                span: Span::new(
-                    Position::new(21, 2, 2),
-                    Position::new(23, 2, 4)
-                )
+                span: Span::new(Position::new(21, 2, 2), Position::new(23, 2, 4))
             })
         );
     }
@@ -216,10 +198,7 @@ mod tests {
             Parser::new("You have '{count'").parse(),
             Ok(vec![AstElement::Literal {
                 value: "You have {count".to_string(),
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(17, 1, 18)
-                )
+                span: Span::new(Position::new(0, 1, 1), Position::new(17, 1, 18))
             }])
         )
     }
@@ -230,10 +209,7 @@ mod tests {
             Parser::new("You have '{count").parse(),
             Ok(vec![AstElement::Literal {
                 value: "You have {count".to_string(),
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(16, 1, 17)
-                )
+                span: Span::new(Position::new(0, 1, 1), Position::new(16, 1, 17))
             }])
         )
     }
@@ -244,10 +220,7 @@ mod tests {
             Parser::new("You have '{count}").parse(),
             Ok(vec![AstElement::Literal {
                 value: "You have {count}".to_string(),
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(17, 1, 18)
-                )
+                span: Span::new(Position::new(0, 1, 1), Position::new(17, 1, 18))
             }])
         )
     }
@@ -290,17 +263,11 @@ mod tests {
             Ok(vec![
                 AstElement::Literal {
                     value: "My name is ".to_string(),
-                    span: Span::new(
-                        Position::new(0, 1, 1),
-                        Position::new(11, 1, 12)
-                    )
+                    span: Span::new(Position::new(0, 1, 1), Position::new(11, 1, 12))
                 },
                 AstElement::Argument {
                     value: "0",
-                    span: Span::new(
-                        Position::new(11, 1, 12),
-                        Position::new(14, 1, 15)
-                    )
+                    span: Span::new(Position::new(11, 1, 12), Position::new(14, 1, 15))
                 }
             ])
         )
@@ -313,17 +280,11 @@ mod tests {
             Ok(vec![
                 AstElement::Literal {
                     value: "My name is ".to_string(),
-                    span: Span::new(
-                        Position::new(0, 1, 1),
-                        Position::new(11, 1, 12)
-                    )
+                    span: Span::new(Position::new(0, 1, 1), Position::new(11, 1, 12))
                 },
                 AstElement::Argument {
                     value: "name",
-                    span: Span::new(
-                        Position::new(11, 1, 12),
-                        Position::new(19, 1, 20)
-                    )
+                    span: Span::new(Position::new(11, 1, 12), Position::new(19, 1, 20))
                 }
             ])
         )
@@ -336,10 +297,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::EmptyArgument,
                 message: "My name is { }".to_string(),
-                span: Span::new(
-                    Position::new(11, 1, 12),
-                    Position::new(14, 1, 15)
-                )
+                span: Span::new(Position::new(11, 1, 12), Position::new(14, 1, 15))
             })
         )
     }
@@ -351,10 +309,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::EmptyArgument,
                 message: "My name is {\n}".to_string(),
-                span: Span::new(
-                    Position::new(11, 1, 12),
-                    Position::new(14, 2, 2)
-                )
+                span: Span::new(Position::new(11, 1, 12), Position::new(14, 2, 2))
             })
         )
     }
@@ -366,10 +321,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::MalformedArgument,
                 message: "My name is {0!}".to_string(),
-                span: Span::new(
-                    Position::new(11, 1, 12),
-                    Position::new(13, 1, 14)
-                )
+                span: Span::new(Position::new(11, 1, 12), Position::new(13, 1, 14))
             })
         )
     }
@@ -381,10 +333,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::UnclosedArgumentBrace,
                 message: "My name is { 0".to_string(),
-                span: Span::new(
-                    Position::new(11, 1, 12),
-                    Position::new(14, 1, 15)
-                )
+                span: Span::new(Position::new(11, 1, 12), Position::new(14, 1, 15))
             })
         )
     }
@@ -396,10 +345,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::UnclosedArgumentBrace,
                 message: "My name is { ".to_string(),
-                span: Span::new(
-                    Position::new(11, 1, 12),
-                    Position::new(13, 1, 14)
-                )
+                span: Span::new(Position::new(11, 1, 12), Position::new(13, 1, 14))
             })
         )
     }
@@ -411,25 +357,16 @@ mod tests {
             Ok(vec![
                 AstElement::Literal {
                     value: "I have ".to_string(),
-                    span: Span::new(
-                        Position::new(0, 1, 1),
-                        Position::new(7, 1, 8)
-                    )
+                    span: Span::new(Position::new(0, 1, 1), Position::new(7, 1, 8))
                 },
                 AstElement::Number {
                     value: "numCats",
-                    span: Span::new(
-                        Position::new(7, 1, 8),
-                        Position::new(24, 1, 25)
-                    ),
+                    span: Span::new(Position::new(7, 1, 8), Position::new(24, 1, 25)),
                     style: None
                 },
                 AstElement::Literal {
                     value: " cats.".to_string(),
-                    span: Span::new(
-                        Position::new(24, 1, 25),
-                        Position::new(30, 1, 31)
-                    )
+                    span: Span::new(Position::new(24, 1, 25), Position::new(30, 1, 31))
                 },
             ])
         )
@@ -438,36 +375,25 @@ mod tests {
     #[test]
     fn simple_date_and_time_arg_1() {
         assert_eq!(
-            Parser::new("Your meeting is scheduled for the {dateVal, date} at {timeVal, time}").parse(),
+            Parser::new("Your meeting is scheduled for the {dateVal, date} at {timeVal, time}")
+                .parse(),
             Ok(vec![
                 AstElement::Literal {
                     value: "Your meeting is scheduled for the ".to_string(),
-                    span: Span::new(
-                        Position::new(0, 1, 1),
-                        Position::new(34, 1, 35)
-                    )
+                    span: Span::new(Position::new(0, 1, 1), Position::new(34, 1, 35))
                 },
                 AstElement::Date {
                     value: "dateVal",
-                    span: Span::new(
-                        Position::new(34, 1, 35),
-                        Position::new(49, 1, 50)
-                    ),
+                    span: Span::new(Position::new(34, 1, 35), Position::new(49, 1, 50)),
                     style: None
                 },
                 AstElement::Literal {
                     value: " at ".to_string(),
-                    span: Span::new(
-                        Position::new(49, 1, 50),
-                        Position::new(53, 1, 54)
-                    )
+                    span: Span::new(Position::new(49, 1, 50), Position::new(53, 1, 54))
                 },
                 AstElement::Time {
                     value: "timeVal",
-                    span: Span::new(
-                        Position::new(53, 1, 54),
-                        Position::new(68, 1, 69)
-                    ),
+                    span: Span::new(Position::new(53, 1, 54), Position::new(68, 1, 69)),
                     style: None
                 },
             ])
@@ -481,10 +407,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::InvalidArgumentType,
                 message: "My name is {0, foo}".to_string(),
-                span: Span::new(
-                    Position::new(15, 1, 16),
-                    Position::new(18, 1, 19)
-                )
+                span: Span::new(Position::new(15, 1, 16), Position::new(18, 1, 19))
             })
         )
     }
@@ -496,10 +419,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::ExpectArgumentType,
                 message: "My name is {0, }".to_string(),
-                span: Span::new(
-                    Position::new(15, 1, 16),
-                    Position::new(15, 1, 16)
-                )
+                span: Span::new(Position::new(15, 1, 16), Position::new(15, 1, 16))
             })
         )
     }
@@ -511,10 +431,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::UnclosedArgumentBrace,
                 message: "{0, number".to_string(),
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(10, 1, 11)
-                )
+                span: Span::new(Position::new(0, 1, 1), Position::new(10, 1, 11))
             })
         )
     }
@@ -526,10 +443,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::UnclosedArgumentBrace,
                 message: "{0, number, percent".to_string(),
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(19, 1, 20)
-                )
+                span: Span::new(Position::new(0, 1, 1), Position::new(19, 1, 20))
             })
         )
     }
@@ -541,10 +455,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::UnclosedArgumentBrace,
                 message: "{0, number, ::percent".to_string(),
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(21, 1, 22)
-                )
+                span: Span::new(Position::new(0, 1, 1), Position::new(21, 1, 22))
             })
         )
     }
@@ -555,10 +466,7 @@ mod tests {
             Parser::new("{0, number, percent}").parse(),
             Ok(vec![AstElement::Number {
                 value: "0",
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(20, 1, 21)
-                ),
+                span: Span::new(Position::new(0, 1, 1), Position::new(20, 1, 21)),
                 style: Some(NumberArgStyle::Style("percent"))
             }])
         )
@@ -571,10 +479,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::ExpectNumberStyle,
                 message: "{0, number, }".to_string(),
-                span: Span::new(
-                    Position::new(12, 1, 13),
-                    Position::new(12, 1, 13)
-                )
+                span: Span::new(Position::new(12, 1, 13), Position::new(12, 1, 13))
             })
         )
     }
@@ -585,19 +490,10 @@ mod tests {
             Parser::new("{0, number, ::percent}").parse(),
             Ok(vec![AstElement::Number {
                 value: "0",
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(22, 1, 23)
-                ),
+                span: Span::new(Position::new(0, 1, 1), Position::new(22, 1, 23)),
                 style: Some(NumberArgStyle::Skeleton(NumberSkeleton {
-                    tokens: vec![NumberSkeletonToken {
-                        stem: "percent",
-                        options: vec![]
-                    }],
-                    span: Span::new(
-                        Position::new(12, 1, 13),
-                        Position::new(21, 1, 22)
-                    ),
+                    tokens: vec![NumberSkeletonToken { stem: "percent", options: vec![] }],
+                    span: Span::new(Position::new(12, 1, 13), Position::new(21, 1, 22)),
                     parsed_options: None,
                 }))
             }])
@@ -610,19 +506,10 @@ mod tests {
             Parser::new("{0, number, :: currency/GBP}").parse(),
             Ok(vec![AstElement::Number {
                 value: "0",
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(28, 1, 29)
-                ),
+                span: Span::new(Position::new(0, 1, 1), Position::new(28, 1, 29)),
                 style: Some(NumberArgStyle::Skeleton(NumberSkeleton {
-                    tokens: vec![NumberSkeletonToken {
-                        stem: "currency",
-                        options: vec!["GBP"]
-                    }],
-                    span: Span::new(
-                        Position::new(12, 1, 13),
-                        Position::new(27, 1, 28)
-                    ),
+                    tokens: vec![NumberSkeletonToken { stem: "currency", options: vec!["GBP"] }],
+                    span: Span::new(Position::new(12, 1, 13), Position::new(27, 1, 28)),
                     parsed_options: None,
                 }))
             }])
@@ -635,25 +522,13 @@ mod tests {
             Parser::new("{0, number, ::currency/GBP compact-short}").parse(),
             Ok(vec![AstElement::Number {
                 value: "0",
-                span: Span::new(
-                    Position::new(0, 1, 1),
-                    Position::new(41, 1, 42)
-                ),
+                span: Span::new(Position::new(0, 1, 1), Position::new(41, 1, 42)),
                 style: Some(NumberArgStyle::Skeleton(NumberSkeleton {
                     tokens: vec![
-                        NumberSkeletonToken {
-                            stem: "currency",
-                            options: vec!["GBP"]
-                        },
-                        NumberSkeletonToken {
-                            stem: "compact-short",
-                            options: vec![]
-                        }
+                        NumberSkeletonToken { stem: "currency", options: vec!["GBP"] },
+                        NumberSkeletonToken { stem: "compact-short", options: vec![] }
                     ],
-                    span: Span::new(
-                        Position::new(12, 1, 13),
-                        Position::new(40, 1, 41)
-                    ),
+                    span: Span::new(Position::new(12, 1, 13), Position::new(40, 1, 41)),
                     parsed_options: None,
                 }))
             }])
@@ -667,10 +542,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::ExpectNumberSkeletonToken,
                 message: "{0, number, ::".to_string(),
-                span: Span::new(
-                    Position::new(14, 1, 15),
-                    Position::new(14, 1, 15)
-                )
+                span: Span::new(Position::new(14, 1, 15), Position::new(14, 1, 15))
             })
         )
     }
@@ -682,10 +554,7 @@ mod tests {
             Err(Error {
                 kind: ErrorKind::ExpectNumberSkeletonTokenOption,
                 message: "{0, number, ::currency/".to_string(),
-                span: Span::new(
-                    Position::new(23, 1, 24),
-                    Position::new(23, 1, 24),
-                )
+                span: Span::new(Position::new(23, 1, 24), Position::new(23, 1, 24),)
             })
         )
     }
