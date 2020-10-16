@@ -246,49 +246,101 @@ impl<'s> Parser<'s> {
                 ))
             }
 
-            "number" => {
+            "number" | "date" | "time" => {
                 // Parse this range:
                 // {name, number, style}
                 //              ^-------^
                 self.bump_space();
 
-                let style = if !self.is_eof() && self.char() == ',' {
-                    Some(self.parse_number_arg_style()?)
+                let style_and_span = if !self.is_eof() && self.char() == ',' {
+                    self.bump(); // `,`
+                    self.bump_space();
+
+                    let style_start_position = self.position();
+                    let style = self.parse_simple_arg_style_if_possible()?.trim_end();
+                    if style.is_empty() {
+                        return Err(self.error(
+                            ErrorKind::ExpectArgumentStyle,
+                            Span::new(self.position(), self.position()),
+                        ));
+                    }
+
+                    let style_span = Span::new(style_start_position, self.position());
+                    Some((style, style_span))
                 } else {
                     None
                 };
 
                 self.try_parse_argument_close(opening_brace_position)?;
-
-                Ok(AstElement::Number {
-                    value,
-                    span: Span::new(opening_brace_position, self.position()),
-                    style,
-                })
-            }
-
-            "date" | "time" => {
-                self.bump_space();
-
-                let style = if !self.is_eof() && self.char() == ',' {
-                    Some(self.parse_date_time_arg_style()?)
-                } else {
-                    None
-                };
-
-                self.try_parse_argument_close(opening_brace_position)?;
-
                 let span = Span::new(opening_brace_position, self.position());
-                if _type == "date" {
-                    Ok(AstElement::Date { value, span, style })
+
+                if let Some((style, style_span)) = style_and_span {
+                    if style.starts_with("::") {
+                        // Skeleton starts with `::`.
+
+                        let skeleton = style[2..].trim_start();
+
+                        Ok(match _type {
+                            "number" => {
+                                let skeleton =
+                                    parse_number_skeleton_from_string(skeleton, style_span)
+                                        .map_err(|kind| self.error(kind, style_span))?;
+
+                                AstElement::Number {
+                                    value,
+                                    span,
+                                    style: Some(NumberArgStyle::Skeleton(skeleton)),
+                                }
+                            }
+                            _ => {
+                                if skeleton.is_empty() {
+                                    return Err(self.error(ErrorKind::ExpectDateTimeSkeleton, span));
+                                }
+                                let style = Some(DateTimeArgStyle::Skeleton(DateTimeSkeleton {
+                                    pattern: skeleton,
+                                    span: style_span,
+                                    parsed_options: None,
+                                }));
+                                if _type == "date" {
+                                    AstElement::Date { value, span, style }
+                                } else {
+                                    AstElement::Time { value, span, style }
+                                }
+                            }
+                        })
+                    } else {
+                        // Regular style
+
+                        Ok(match _type {
+                            "number" => AstElement::Number {
+                                value,
+                                span,
+                                style: Some(NumberArgStyle::Style(style)),
+                            },
+                            "date" => AstElement::Date {
+                                value,
+                                span,
+                                style: Some(DateTimeArgStyle::Style(style)),
+                            },
+                            "time" => AstElement::Time {
+                                value,
+                                span,
+                                style: Some(DateTimeArgStyle::Style(style)),
+                            },
+                            _ => panic!(),
+                        })
+                    }
                 } else {
-                    Ok(AstElement::Time { value, span, style })
+                    // No style
+
+                    Ok(match _type {
+                        "number" => AstElement::Number { value, span, style: None },
+                        "date" => AstElement::Date { value, span, style: None },
+                        _ => AstElement::Time { value, span, style: None },
+                    })
                 }
             }
 
-            // TODO: support these
-            // "plural" | "selectordinal" => {}
-            // "select" => {}
             _ => Err(self.error(
                 ErrorKind::InvalidArgumentType,
                 Span::new(type_starting_position, type_end_position),
@@ -296,75 +348,13 @@ impl<'s> Parser<'s> {
         }
     }
 
-    fn parse_date_time_arg_style(&self) -> Result<DateTimeArgStyle> {
-        self.bump(); // `,`
-        self.bump_space();
-
-        // Parse this range:
-        // {name, date, style}
-        //              ^----^
-        let style_start_position = self.position();
-
-        // A skeleton starts with `::`.
-        if self.bump_if("::") {
-            // An identifier as style
-            let style_string = self.parse_simple_arg_style_if_possible(false)?;
-            if style_string.is_empty() {
-                return Err(self.error(
-                    ErrorKind::ExpectDateTimeSkeleton,
-                    Span::new(style_start_position, style_start_position),
-                ));
-            }
-            Ok(DateTimeArgStyle::Style(style_string))
-        } else {
-            // An identifier as style
-            let style_string = self.parse_simple_arg_style_if_possible(false)?;
-            if style_string.is_empty() {
-                return Err(self.error(
-                    ErrorKind::ExpectDateTimeStyle,
-                    Span::new(style_start_position, style_start_position),
-                ));
-            }
-            Ok(DateTimeArgStyle::Style(style_string))
-        }
-    }
-
-    fn parse_number_arg_style(&self) -> Result<NumberArgStyle> {
-        self.bump(); // `,`
-        self.bump_space();
-
-        // Parse this range:
-        // {name, number, style}
-        //                ^----^
-        let style_start_position = self.position();
-
-        // A skeleton starts with `::`.
-        if self.bump_if("::") {
-            self.bump_space();
-            Ok(NumberArgStyle::Skeleton(self.try_parse_number_skeleton_body(style_start_position)?))
-        } else {
-            // An identifier as style
-            let style_string = self.parse_simple_arg_style_if_possible(false)?;
-            if style_string.is_empty() {
-                return Err(self.error(
-                    ErrorKind::ExpectNumberStyle,
-                    Span::new(style_start_position, style_start_position),
-                ));
-            }
-            Ok(NumberArgStyle::Style(style_string))
-        }
-    }
-
     /// See: https://github.com/unicode-org/icu/blob/af7ed1f6d2298013dc303628438ec4abe1f16479/icu4c/source/common/messagepattern.cpp#L659
-    fn parse_simple_arg_style_if_possible(&self, stop_at_slash: bool) -> Result<&str> {
+    fn parse_simple_arg_style_if_possible(&self) -> Result<&str> {
         let mut nested_braces = 0;
 
         let start_position = self.position();
         while !self.is_eof() {
             match self.char() {
-                c if c.is_whitespace() => {
-                    break;
-                }
                 '\'' => {
                     // Treat apostrophe as quoting but include it in the style part.
                     // Find the end of the quoted literal text.
@@ -389,7 +379,6 @@ impl<'s> Parser<'s> {
                         break;
                     }
                 }
-                '/' if stop_at_slash => break,
                 _ => {
                     self.bump();
                 }
@@ -397,58 +386,6 @@ impl<'s> Parser<'s> {
         }
 
         Ok(&self.message[start_position.offset..self.position().offset])
-    }
-
-    fn try_parse_number_skeleton_body(
-        &self,
-        style_start_position: Position,
-    ) -> Result<NumberSkeleton> {
-        let first_token = self.try_parse_number_skeleton_token()?.ok_or_else(|| {
-            self.error(
-                ErrorKind::ExpectNumberSkeletonToken,
-                Span::new(self.position(), self.position()),
-            )
-        })?;
-
-        let mut tokens = vec![first_token];
-        loop {
-            self.bump_space();
-            match self.try_parse_number_skeleton_token()? {
-                None => break,
-                Some(token_result) => tokens.push(token_result),
-            }
-        }
-
-        Ok(NumberSkeleton {
-            tokens,
-            span: Span::new(style_start_position, self.position()),
-            parsed_options: None,
-        })
-    }
-
-    fn try_parse_number_skeleton_token(&self) -> Result<Option<NumberSkeletonToken>> {
-        // Parse: currency/GBP
-        //        ^-------^
-        let stem = self.parse_simple_arg_style_if_possible(true)?;
-        if stem.is_empty() {
-            return Ok(None);
-        }
-
-        let mut options: Vec<&str> = vec![];
-        while self.bump_if("/") {
-            // Parse: currency/GBP
-            //                 ^--^
-            let option = self.parse_simple_arg_style_if_possible(true)?;
-            if option.is_empty() {
-                return Err(self.error(
-                    ErrorKind::ExpectNumberSkeletonTokenOption,
-                    Span::new(self.position(), self.position()),
-                ));
-            }
-            options.push(option);
-        }
-
-        Ok(Some(NumberSkeletonToken { stem, options }))
     }
 
     fn try_parse_argument_close(&self, opening_brace_position: Position) -> Result<()> {
@@ -607,4 +544,44 @@ impl<'s> Parser<'s> {
     fn is_eof(&self) -> bool {
         self.offset() == self.message.len()
     }
+}
+
+fn parse_number_skeleton_from_string(
+    skeleton: &str,
+    span: Span,
+) -> std::result::Result<NumberSkeleton, ErrorKind> {
+    if skeleton.is_empty() {
+        return Err(ErrorKind::ExpectNumberSkeleton);
+    }
+    // Parse the skeleton
+    let tokens: std::result::Result<Vec<_>, _> = skeleton
+        .split(char::is_whitespace)
+        .filter(|x| !x.is_empty())
+        .map(|token| {
+            let mut stem_and_options = token.split('/');
+            if let Some(stem) = stem_and_options.next() {
+                let options: std::result::Result<Vec<_>, _> = stem_and_options
+                    .map(|option| {
+                        // Token option cannot be empty
+                        if option.is_empty() {
+                            Err(ErrorKind::InvalidNumberSkeleton)
+                        } else {
+                            Ok(option)
+                        }
+                    })
+                    .collect();
+                Ok(NumberSkeletonToken { stem, options: options? })
+            } else {
+                Err(ErrorKind::InvalidNumberSkeleton)
+            }
+        })
+        .collect();
+
+    Ok(NumberSkeleton {
+        tokens: tokens?,
+        // TODO: use trimmed end position
+        span,
+        // TODO
+        parsed_options: None,
+    })
 }

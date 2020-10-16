@@ -477,7 +477,7 @@ mod tests {
         assert_eq!(
             Parser::new("{0, number, }").parse(),
             Err(Error {
-                kind: ErrorKind::ExpectNumberStyle,
+                kind: ErrorKind::ExpectArgumentStyle,
                 message: "{0, number, }".to_string(),
                 span: Span::new(Position::new(12, 1, 13), Position::new(12, 1, 13))
             })
@@ -538,11 +538,11 @@ mod tests {
     #[test]
     fn expect_number_arg_skeleton_token_1() {
         assert_eq!(
-            Parser::new("{0, number, ::").parse(),
+            Parser::new("{0, number, ::}").parse(),
             Err(Error {
-                kind: ErrorKind::ExpectNumberSkeletonToken,
-                message: "{0, number, ::".to_string(),
-                span: Span::new(Position::new(14, 1, 15), Position::new(14, 1, 15))
+                kind: ErrorKind::ExpectNumberSkeleton,
+                message: "{0, number, ::}".to_string(),
+                span: Span::new(Position::new(12, 1, 13), Position::new(14, 1, 15))
             })
         )
     }
@@ -550,11 +550,11 @@ mod tests {
     #[test]
     fn expect_number_arg_skeleton_token_option_1() {
         assert_eq!(
-            Parser::new("{0, number, ::currency/").parse(),
+            Parser::new("{0, number, ::currency/}").parse(),
             Err(Error {
-                kind: ErrorKind::ExpectNumberSkeletonTokenOption,
-                message: "{0, number, ::currency/".to_string(),
-                span: Span::new(Position::new(23, 1, 24), Position::new(23, 1, 24),)
+                kind: ErrorKind::InvalidNumberSkeleton,
+                message: "{0, number, ::currency/}".to_string(),
+                span: Span::new(Position::new(12, 1, 13), Position::new(23, 1, 24),)
             })
         )
     }

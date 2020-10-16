@@ -14,14 +14,14 @@ pub enum ErrorKind {
     ExpectArgumentType,
     /// Unsupported argument type (e.g. `{foo,foo}`)
     InvalidArgumentType,
-    /// Expect a number argument style (e.g. `{foo, number, }`)
-    ExpectNumberStyle,
-    /// Expect a date / time argument style (e.g. `{foo, time, }`)
-    ExpectDateTimeStyle,
-    /// Expect a number skeleton token following the `::` (e.g. `{foo, number, ::}`})
-    ExpectNumberSkeletonToken,
-    /// Expect a number skeleton token options following the slash (e.g. `{foo, number, ::currency/}`)
-    ExpectNumberSkeletonTokenOption,
+    /// Expect an argument style (e.g. `{foo, number, }`)
+    ExpectArgumentStyle,
+    /// The number skeleton is invalid.
+    InvalidNumberSkeleton,
+    /// The date time skeleton is invalid.
+    InvalidDateTimeSkeleton,
+    /// Exepct a number skeleton following the `::` (e.g. `{foo, number, ::}`)
+    ExpectNumberSkeleton,
     /// Exepct a date time skeleton following the `::` (e.g. `{foo, date, ::}`)
     ExpectDateTimeSkeleton,
     /// Unmatched apostrophes in the argument style (e.g. `{foo, number, 'test`)
@@ -143,9 +143,9 @@ pub enum DateTimeArgStyle<'s> {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DateTimeSkeleton<'s> {
-    pattern: &'s str,
-    span: Span,
-    parsed_options: Option<JsIntlDateTimeFormatOptions>,
+    pub pattern: &'s str,
+    pub span: Span,
+    pub parsed_options: Option<JsIntlDateTimeFormatOptions>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
