@@ -28,10 +28,7 @@ impl<'s> Parser<'s> {
         assert_eq!(self.offset(), 0, "parser can only be used once");
         let mut elements: Vec<AstElement> = vec![];
 
-        loop {
-            if self.is_eof() {
-                break;
-            }
+        while !self.is_eof() {
             elements.push(match self.char() {
                 '{' => self.parse_argument()?,
                 _ => self.parse_literal()?,
@@ -252,8 +249,7 @@ impl<'s> Parser<'s> {
                 //              ^-------^
                 self.bump_space();
 
-                let style_and_span = if !self.is_eof() && self.char() == ',' {
-                    self.bump(); // `,`
+                let style_and_span = if self.bump_if(",") {
                     self.bump_space();
 
                     let style_start_position = self.position();
@@ -274,6 +270,7 @@ impl<'s> Parser<'s> {
                 self.try_parse_argument_close(opening_brace_position)?;
                 let span = Span::new(opening_brace_position, self.position());
 
+                // Extract style or skeleton
                 if let Some((style, style_span)) = style_and_span {
                     if style.starts_with("::") {
                         // Skeleton starts with `::`.
@@ -341,6 +338,32 @@ impl<'s> Parser<'s> {
                 }
             }
 
+            // "select" => {
+            //     // Parse this range:
+            //     // {name, select, options}
+            //     //              ^---------^
+            //     let type_end_position = self.position();
+
+            //     self.bump_space();
+            //     if !self.bump_if(",") {
+            //         return Err(self.error(
+            //             ErrorKind::ExpectSelectArgumentOptions,
+            //             Span::new(type_end_position, type_end_position),
+            //         ));
+            //     }
+            //     self.bump_space();
+
+            //     let options = self.try_parse_select_options()?;
+            //     self.try_parse_argument_close(opening_brace_position)?;
+
+            //     Ok(AstElement::Select {
+            //         value,
+            //         span: Span::new(opening_brace_position, self.position()),
+            //         options,
+            //     })
+            // }
+
+            // "plural" | "selectordinal" => TODO,
             _ => Err(self.error(
                 ErrorKind::InvalidArgumentType,
                 Span::new(type_starting_position, type_end_position),
@@ -390,7 +413,7 @@ impl<'s> Parser<'s> {
 
     fn try_parse_argument_close(&self, opening_brace_position: Position) -> Result<()> {
         // Parse: {value, number, ::currency/GBP }
-        //                                      ^-^
+        //                                       ^^
         if self.is_eof() {
             return Err(self.error(
                 ErrorKind::UnclosedArgumentBrace,

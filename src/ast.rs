@@ -26,6 +26,8 @@ pub enum ErrorKind {
     ExpectDateTimeSkeleton,
     /// Unmatched apostrophes in the argument style (e.g. `{foo, number, 'test`)
     UnclosedQuoteInArgumentStyle,
+    /// Missing select argument options (e.g. `{foo, select}`)
+    ExpectSelectArgumentOptions,
 }
 
 /// A single position in an ICU message.
