@@ -2,6 +2,7 @@ use crate::ast::{self, *};
 use crate::pattern_syntax::is_pattern_syntax;
 use std::cell::Cell;
 use std::cmp;
+use std::collections::HashSet;
 use std::result;
 
 type Result<T> = result::Result<T, ast::Error>;
@@ -11,7 +12,6 @@ pub struct Parser<'s> {
     position: Cell<Position>,
     message: &'s str,
     should_ignore_tag: bool,
-    // TODO: parser context and parser options
 }
 
 impl<'s> Parser<'s> {
@@ -26,12 +26,28 @@ impl<'s> Parser<'s> {
 
     pub fn parse(&mut self) -> Result<Ast> {
         assert_eq!(self.offset(), 0, "parser can only be used once");
+        self.parse_message(0, "")
+    }
+
+    /// # Arguments
+    ///
+    /// * `nesting_level` - The nesting level of the message. This can be positive if the message
+    ///   is nested inside the plural or select argument's selector clause.
+    /// * `parent_arg_type` - If nested, this is the parent plural or selector's argument type.
+    ///   Otherwise this should just be an empty string.
+    fn parse_message(&self, nesting_level: usize, parent_arg_type: &str) -> Result<Ast> {
         let mut elements: Vec<AstElement> = vec![];
 
         while !self.is_eof() {
             elements.push(match self.char() {
-                '{' => self.parse_argument()?,
-                _ => self.parse_literal()?,
+                '{' => self.parse_argument(nesting_level)?,
+                '}' if nesting_level > 0 => break,
+                '#' if parent_arg_type == "plural" || parent_arg_type == "selectordinal" => {
+                    let position = self.position();
+                    self.bump();
+                    AstElement::Pound(Span::new(position, self.position()))
+                }
+                _ => self.parse_literal(nesting_level, parent_arg_type)?,
             })
         }
 
@@ -42,22 +58,20 @@ impl<'s> Parser<'s> {
         self.position.get()
     }
 
-    fn parse_literal(&self) -> Result<AstElement> {
+    fn parse_literal(&self, nesting_level: usize, parent_arg_type: &str) -> Result<AstElement> {
         let start = self.position();
 
         let mut value = String::new();
         loop {
             if self.bump_if("''") {
                 value.push('\'');
-            } else if let Some(fragment) = self.try_parse_quote() {
+            } else if let Some(fragment) = self.try_parse_quote(parent_arg_type) {
                 value.push_str(&fragment);
-            } else if let Some(fragment) = self.try_parse_unquoted() {
+            } else if let Some(fragment) = self.try_parse_unquoted(nesting_level, parent_arg_type) {
                 value.push(fragment);
             } else if let Some(fragment) = self.try_parse_left_angle_bracket() {
                 value.push_str(&fragment);
             } else {
-                // TODO: remove this after more rules are added.
-                assert!(self.is_eof() || self.char() == '{');
                 break;
             }
         }
@@ -69,18 +83,16 @@ impl<'s> Parser<'s> {
     /// Starting with ICU 4.8, an ASCII apostrophe only starts quoted text if it immediately precedes
     /// a character that requires quoting (that is, "only where needed"), and works the same in
     /// nested messages as on the top level of the pattern. The new behavior is otherwise compatible.
-    fn try_parse_quote(&self) -> Option<String> {
+    fn try_parse_quote(&self, parent_arg_type: &str) -> Option<String> {
         if self.is_eof() || self.char() != '\'' {
             return None;
         }
 
         // Parse escaped char following the apostrophe, or early return if there is no escaped char.
-        // TODO
-        let is_in_plural_option = false;
-        // Check if is valis escaped character
+        // Check if is valid escaped character
         match self.peek() {
             Some('{') | Some('<') | Some('>') | Some('}') => (),
-            Some('#') if is_in_plural_option => (),
+            Some('#') if parent_arg_type == "plural" || parent_arg_type == "selectordinal" => (),
             _ => {
                 return None;
             }
@@ -114,17 +126,14 @@ impl<'s> Parser<'s> {
         Some(value)
     }
 
-    fn try_parse_unquoted(&self) -> Option<char> {
+    fn try_parse_unquoted(&self, nesting_level: usize, parent_arg_type: &str) -> Option<char> {
         if self.is_eof() {
             return None;
         }
-        // TODO
-        let is_in_plural_option = false;
-        let is_in_nested_message_text = false;
         match self.char() {
             '<' | '{' => None,
-            '#' if is_in_plural_option => None,
-            '}' if is_in_nested_message_text => None,
+            '#' if parent_arg_type == "plural" || parent_arg_type == "selectordinal" => None,
+            '}' if nesting_level > 0 => None,
             c => {
                 self.bump();
                 Some(c)
@@ -133,14 +142,11 @@ impl<'s> Parser<'s> {
     }
 
     fn try_parse_left_angle_bracket(&self) -> Option<String> {
-        // TODO
-        let should_ignore_tag = false;
-
         if self.is_eof() || self.char() != '<' {
             return None;
         }
 
-        if !should_ignore_tag {
+        if !self.should_ignore_tag {
             // make sure `<` is not parsed as regular opening angle bracket
             // NOTE: this requires infinite lookahead...
             // TODO
@@ -149,7 +155,7 @@ impl<'s> Parser<'s> {
         Some('<'.to_string())
     }
 
-    fn parse_argument(&self) -> Result<AstElement> {
+    fn parse_argument(&self, nesting_level: usize) -> Result<AstElement> {
         let opening_brace_position = self.position();
         self.bump(); // `{`
 
@@ -171,7 +177,7 @@ impl<'s> Parser<'s> {
         }
 
         // argument name
-        let value = self.parse_identifier_if_possible();
+        let value = self.parse_identifier_if_possible().0;
         if value.is_empty() {
             return Err(self.error(
                 ErrorKind::MalformedArgument,
@@ -212,7 +218,7 @@ impl<'s> Parser<'s> {
                     ));
                 }
 
-                self.parse_argument_options(value, opening_brace_position)
+                self.parse_argument_options(nesting_level, value, opening_brace_position)
             }
 
             _ => Err(self.error(
@@ -224,6 +230,7 @@ impl<'s> Parser<'s> {
 
     fn parse_argument_options(
         &'s self,
+        nesting_level: usize,
         value: &'s str,
         opening_brace_position: Position,
     ) -> Result<AstElement> {
@@ -231,10 +238,10 @@ impl<'s> Parser<'s> {
         // {name, type, style}
         //        ^---^
         let type_starting_position = self.position();
-        let _type = self.parse_identifier_if_possible();
+        let arg_type = self.parse_identifier_if_possible().0;
         let type_end_position = self.position();
 
-        match _type {
+        match arg_type {
             "" => {
                 // Expecting a style string number, date, time, plural, selectordinal, or select.
                 Err(self.error(
@@ -274,10 +281,9 @@ impl<'s> Parser<'s> {
                 if let Some((style, style_span)) = style_and_span {
                     if style.starts_with("::") {
                         // Skeleton starts with `::`.
-
                         let skeleton = style[2..].trim_start();
 
-                        Ok(match _type {
+                        Ok(match arg_type {
                             "number" => {
                                 let skeleton =
                                     parse_number_skeleton_from_string(skeleton, style_span)
@@ -298,7 +304,7 @@ impl<'s> Parser<'s> {
                                     span: style_span,
                                     parsed_options: None,
                                 }));
-                                if _type == "date" {
+                                if arg_type == "date" {
                                     AstElement::Date { value, span, style }
                                 } else {
                                     AstElement::Time { value, span, style }
@@ -307,8 +313,7 @@ impl<'s> Parser<'s> {
                         })
                     } else {
                         // Regular style
-
-                        Ok(match _type {
+                        Ok(match arg_type {
                             "number" => AstElement::Number {
                                 value,
                                 span,
@@ -319,18 +324,16 @@ impl<'s> Parser<'s> {
                                 span,
                                 style: Some(DateTimeArgStyle::Style(style)),
                             },
-                            "time" => AstElement::Time {
+                            _ => AstElement::Time {
                                 value,
                                 span,
                                 style: Some(DateTimeArgStyle::Style(style)),
                             },
-                            _ => panic!(),
                         })
                     }
                 } else {
                     // No style
-
-                    Ok(match _type {
+                    Ok(match arg_type {
                         "number" => AstElement::Number { value, span, style: None },
                         "date" => AstElement::Date { value, span, style: None },
                         _ => AstElement::Time { value, span, style: None },
@@ -338,37 +341,220 @@ impl<'s> Parser<'s> {
                 }
             }
 
-            // "select" => {
-            //     // Parse this range:
-            //     // {name, select, options}
-            //     //              ^---------^
-            //     let type_end_position = self.position();
+            "plural" | "selectordinal" | "select" => {
+                // Parse this range:
+                // {name, plural, options}
+                //              ^---------^
+                let type_end_position = self.position();
 
-            //     self.bump_space();
-            //     if !self.bump_if(",") {
-            //         return Err(self.error(
-            //             ErrorKind::ExpectSelectArgumentOptions,
-            //             Span::new(type_end_position, type_end_position),
-            //         ));
-            //     }
-            //     self.bump_space();
+                self.bump_space();
+                if !self.bump_if(",") {
+                    return Err(self.error(
+                        ErrorKind::ExpectSelectArgumentOptions,
+                        Span::new(type_end_position, type_end_position),
+                    ));
+                }
+                self.bump_space();
 
-            //     let options = self.try_parse_select_options()?;
-            //     self.try_parse_argument_close(opening_brace_position)?;
+                // Parse offset:
+                // {name, plural, offset:1, options}
+                //                ^-----^
+                //
+                // or the first option:
+                //
+                // {name, plural, one {...} other {...}}
+                //                ^--^
+                let mut identifier_and_span = self.parse_identifier_if_possible();
 
-            //     Ok(AstElement::Select {
-            //         value,
-            //         span: Span::new(opening_brace_position, self.position()),
-            //         options,
-            //     })
-            // }
+                let plural_offset = if arg_type != "select" && identifier_and_span.0 == "offset" {
+                    if !self.bump_if(":") {
+                        return Err(self.error(
+                            ErrorKind::ExpectPluralArgumentOffsetValue,
+                            Span::new(self.position(), self.position()),
+                        ));
+                    }
+                    self.bump_space();
+                    let offset = self.try_parse_decimal_integer(
+                        ErrorKind::ExpectPluralArgumentOffsetValue,
+                        ErrorKind::InvalidPluralArgumentOffsetValue,
+                    )?;
 
-            // "plural" | "selectordinal" => TODO,
+                    // Parse another identifier for option parsing
+                    self.bump_space();
+                    identifier_and_span = self.parse_identifier_if_possible();
+
+                    offset
+                } else {
+                    0
+                };
+
+                let options = self.try_parse_plural_or_select_options(
+                    nesting_level,
+                    arg_type,
+                    identifier_and_span,
+                )?;
+                self.try_parse_argument_close(opening_brace_position)?;
+
+                let span = Span::new(opening_brace_position, self.position());
+                match arg_type {
+                    "select" => Ok(AstElement::Select { value, span, options }),
+                    _ => Ok(AstElement::Plural {
+                        value,
+                        span,
+                        options,
+                        offset: plural_offset,
+                        plural_type: if arg_type == "plural" {
+                            PluralType::Cardinal
+                        } else {
+                            PluralType::Ordinal
+                        },
+                    }),
+                }
+            }
+
             _ => Err(self.error(
                 ErrorKind::InvalidArgumentType,
                 Span::new(type_starting_position, type_end_position),
             )),
         }
+    }
+
+    /// * `nesting_level` - the current nesting level of messages.
+    ///   This can be positive when parsing message fragment in select or plural argument options.
+    /// * `parent_arg_type` - the parent argument's type.
+    /// * `parsed_first_identifier` - if provided, this is the first identifier-like selector of the
+    ///   argument. It is a by-product of a previous parsing attempt.
+    fn try_parse_plural_or_select_options(
+        &'s self,
+        nesting_level: usize,
+        parent_arg_type: &'s str,
+        parsed_first_identifier: (&'s str, Span),
+    ) -> Result<Vec<(&'s str, PluralOrSelectOption<'s>)>> {
+        let mut has_other_clause = false;
+
+        let mut options = vec![];
+        let mut selectors_parsed = HashSet::new();
+        let (mut selector, mut selector_span) = parsed_first_identifier;
+        // Parse:
+        // one {one apple}
+        // ^--^
+        loop {
+            if selector.is_empty() {
+                let start_position = self.position();
+                if parent_arg_type != "select" && self.bump_if("=") {
+                    // Try parse `={number}` selector
+                    self.try_parse_decimal_integer(
+                        ErrorKind::ExpectPluralArgumentSelector,
+                        ErrorKind::InvalidPluralArgumentSelector,
+                    )?;
+                    selector_span = Span::new(start_position, self.position());
+                    selector = &self.message[start_position.offset..self.position().offset];
+                } else {
+                    break;
+                }
+            }
+
+            // Duplicate selector clausees
+            if selectors_parsed.contains(selector) {
+                return Err(self.error(
+                    if parent_arg_type == "select" {
+                        ErrorKind::DuplicateSelectArgumentSelector
+                    } else {
+                        ErrorKind::DuplicatePluralArgumentSelector
+                    },
+                    selector_span,
+                ));
+            }
+
+            if selector == "other" {
+                has_other_clause = true;
+            }
+
+            // Parse:
+            // one {one apple}
+            //     ^----------^
+            self.bump_space();
+            let opening_brace_position = self.position();
+            if !self.bump_if("{") {
+                return Err(self.error(
+                    if parent_arg_type == "select" {
+                        ErrorKind::ExpectSelectArgumentSelectorFragment
+                    } else {
+                        ErrorKind::ExpectPluralArgumentSelectorFragment
+                    },
+                    Span::new(self.position(), self.position()),
+                ));
+            }
+
+            let fragment = self.parse_message(nesting_level + 1, parent_arg_type)?;
+            self.try_parse_argument_close(opening_brace_position)?;
+
+            options.push((
+                selector,
+                PluralOrSelectOption {
+                    value: fragment,
+                    span: Span::new(opening_brace_position, self.position()),
+                },
+            ));
+            // Keep track of the existing selectors
+            selectors_parsed.insert(selector);
+
+            // Prep next selector clause.
+            self.bump_space();
+            // 🤷‍♂️ Destructure assignment is NOT yet supported by Rust.
+            let _identifier_and_span = self.parse_identifier_if_possible();
+            selector = _identifier_and_span.0;
+            selector_span = _identifier_and_span.1;
+        }
+
+        if options.is_empty() {
+            return Err(self.error(
+                match parent_arg_type {
+                    "select" => ErrorKind::ExpectSelectArgumentSelector,
+                    _ => ErrorKind::ExpectPluralArgumentSelector,
+                },
+                Span::new(self.position(), self.position()),
+            ));
+        }
+
+        // TODO: make this configurable
+        let requires_other_clause = false;
+        if requires_other_clause && !has_other_clause {
+            return Err(self.error(
+                ErrorKind::MissingOtherClause,
+                Span::new(self.position(), self.position()),
+            ));
+        }
+
+        Ok(options)
+    }
+
+    fn try_parse_decimal_integer(
+        &self,
+        expect_number_error: ErrorKind,
+        invalid_number_error: ErrorKind,
+    ) -> Result<i64> {
+        let mut sign = 1;
+        let start_position = self.position();
+
+        if self.bump_if("+") {
+        } else if self.bump_if("-") {
+            sign = -1;
+        }
+
+        let mut digits = String::new();
+        while !self.is_eof() && self.char().is_digit(10) {
+            digits.push(self.char());
+            self.bump();
+        }
+
+        let span = Span::new(start_position, self.position());
+
+        if self.is_eof() {
+            return Err(self.error(expect_number_error, span));
+        }
+
+        digits.parse::<i64>().map(|x| x * sign).map_err(|_| self.error(invalid_number_error, span))
     }
 
     /// See: https://github.com/unicode-org/icu/blob/af7ed1f6d2298013dc303628438ec4abe1f16479/icu4c/source/common/messagepattern.cpp#L659
@@ -434,7 +620,7 @@ impl<'s> Parser<'s> {
 
     /// Advance the parser until the end of the identifier, if it is currently on
     /// an identifier character. Return an empty string otherwise.
-    fn parse_identifier_if_possible(&self) -> &str {
+    fn parse_identifier_if_possible(&self) -> (&str, Span) {
         let starting_position = self.position();
 
         while !self.is_eof() && !self.char().is_whitespace() && !is_pattern_syntax(self.char()) {
@@ -442,8 +628,9 @@ impl<'s> Parser<'s> {
         }
 
         let end_position = self.position();
+        let span = Span::new(starting_position, end_position);
 
-        &self.message[starting_position.offset..end_position.offset]
+        (&self.message[starting_position.offset..end_position.offset], span)
     }
 
     fn error(&self, kind: ErrorKind, span: Span) -> ast::Error {
@@ -492,7 +679,7 @@ impl<'s> Parser<'s> {
     /// If target offset is beyond the end of the input, bump the parser to the end of the input.
     fn bump_to(&self, target_offset: usize) {
         assert!(
-            self.offset() < target_offset,
+            self.offset() <= target_offset,
             "target_offset {} must be greater than the current offset {})",
             target_offset,
             self.offset()

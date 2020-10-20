@@ -28,6 +28,35 @@ pub enum ErrorKind {
     UnclosedQuoteInArgumentStyle,
     /// Missing select argument options (e.g. `{foo, select}`)
     ExpectSelectArgumentOptions,
+
+    /// Expecting an offset value in `plural` or `selectordinal` argument (e.g `{foo, plural, offset}`)
+    ExpectPluralArgumentOffsetValue,
+    /// Offset value in `plural` or `selectordinal` is invalid (e.g. `{foo, plural, offset: x}`)
+    InvalidPluralArgumentOffsetValue,
+
+    /// Expecting a selector in `select` argument (e.g `{foo, select}`)
+    ExpectSelectArgumentSelector,
+    /// Expecting a selector in `plural` or `selectordinal` argument (e.g `{foo, plural}`)
+    ExpectPluralArgumentSelector,
+
+    /// Expecting a message fragment after the `select` selector (e.g. `{foo, select, apple}`)
+    ExpectSelectArgumentSelectorFragment,
+    /// Expecting a message fragment after the `plural` or `selectordinal` selector
+    /// (e.g. `{foo, plural, one}`)
+    ExpectPluralArgumentSelectorFragment,
+
+    /// Selector in `plural` or `selectordinal` is malformed (e.g. `{foo, plural, =x {#}}`)
+    InvalidPluralArgumentSelector,
+
+    /// Duplicate selectors in `plural` or `selectordinal` argument.
+    /// (e.g. {foo, plural, one {#} one {#}})
+    DuplicatePluralArgumentSelector,
+    /// Duplicate selectors in `select` argument.
+    /// (e.g. {foo, select, apple {apple} apple {apple}})
+    DuplicateSelectArgumentSelector,
+
+    /// Plural or select argument option must have `other` clause.
+    MissingOtherClause,
 }
 
 /// A single position in an ICU message.
@@ -96,6 +125,12 @@ pub struct Error {
 pub type Ast<'s> = Vec<AstElement<'s>>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PluralType {
+    Cardinal,
+    Ordinal,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AstElement<'s> {
     /// Raw text
     Literal { value: String, span: Span },
@@ -110,12 +145,19 @@ pub enum AstElement<'s> {
     /// Variable w/ select format
     Select { value: &'s str, span: Span, options: Vec<(&'s str, PluralOrSelectOption<'s>)> },
     /// Variable w/ plural format
-    Plural { value: &'s str, span: Span, options: Vec<(&'s str, PluralOrSelectOption<'s>)> },
-    /// XML-like tag
-    Tag { value: &'s str, span: Span, children: Box<AstElement<'s>> },
+    Plural {
+        value: &'s str,
+        plural_type: PluralType,
+        span: Span,
+        // TODO: want to use double here but it does not implement Eq trait.
+        offset: i64,
+        options: Vec<(&'s str, PluralOrSelectOption<'s>)>,
+    },
     /// Only possible within plural argument.
     /// This is the `#` symbol that will be substituted with the count.
     Pound(Span),
+    /// XML-like tag
+    Tag { value: &'s str, span: Span, children: Box<AstElement<'s>> },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -152,6 +194,6 @@ pub struct DateTimeSkeleton<'s> {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PluralOrSelectOption<'s> {
-    value: AstElement<'s>,
-    span: Span,
+    pub value: Ast<'s>,
+    pub span: Span,
 }
