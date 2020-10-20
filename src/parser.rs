@@ -429,7 +429,7 @@ impl<'s> Parser<'s> {
         nesting_level: usize,
         parent_arg_type: &'s str,
         parsed_first_identifier: (&'s str, Span),
-    ) -> Result<Vec<(&'s str, PluralOrSelectOption<'s>)>> {
+    ) -> Result<PluralOrSelectOptions> {
         let mut has_other_clause = false;
 
         let mut options = vec![];
@@ -526,7 +526,7 @@ impl<'s> Parser<'s> {
             ));
         }
 
-        Ok(options)
+        Ok(PluralOrSelectOptions(options))
     }
 
     fn try_parse_decimal_integer(
