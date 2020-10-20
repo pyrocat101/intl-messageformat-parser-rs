@@ -250,7 +250,7 @@ mod tests {
                     plural_type: PluralType::Cardinal,
                     span: Span::new(Position::new(4, 1, 5), Position::new(75, 1, 76)),
                     offset: 0,
-                    options: vec![
+                    options: PluralOrSelectOptions(vec![
                         ("one", PluralOrSelectOption {
                             value: vec![
                                 AstElement::Literal {
@@ -269,7 +269,7 @@ mod tests {
                             ],
                             span: Span::new(Position::new(52, 1, 53), Position::new(74, 1, 75))
                         })
-                    ]
+                    ])
                 },
                 AstElement::Literal {
                     value: " today.".to_string(),
@@ -297,7 +297,7 @@ mod tests {
                     plural_type: PluralType::Cardinal,
                     span: Span::new(Position::new(4, 1, 5), Position::new(73, 1, 74)),
                     offset: 0,
-                    options: vec![(
+                    options: PluralOrSelectOptions(vec![(
                         "one",
                         PluralOrSelectOption {
                             value: vec![
@@ -322,7 +322,7 @@ mod tests {
                             ],
                             span: Span::new(Position::new(24, 1, 25), Position::new(72, 1, 73)),
                         },
-                    ),],
+                    )]),
                 },
                 AstElement::Literal {
                     value: " today.".to_string(),
@@ -888,7 +888,7 @@ mod tests {
                 AstElement::Select {
                     value: "gender",
                     span: Span::new(Position::new(0, 1, 1), Position::new(79, 7, 13)),
-                    options: vec![
+                    options: PluralOrSelectOptions(vec![
                         (
                             "male",
                             PluralOrSelectOption {
@@ -955,7 +955,7 @@ mod tests {
                                 span: Span::new(Position::new(65, 6, 7), Position::new(78, 7, 12)),
                             },
                         ),
-                    ],
+                    ]),
                 },
                 AstElement::Literal {
                     value: "\n".to_string(),
@@ -992,7 +992,7 @@ mod tests {
                     plural_type: PluralType::Cardinal,
                     span: Span::new(Position::new(18, 1, 19), Position::new(68, 4, 2)),
                     offset: 0,
-                    options: vec![
+                    options: PluralOrSelectOptions(vec![
                         (
                             "one",
                             PluralOrSelectOption {
@@ -1019,7 +1019,7 @@ mod tests {
                                 span: Span::new(Position::new(59, 3, 9), Position::new(66, 3, 16)),
                             },
                         ),
-                    ],
+                    ]),
                 },
             ])
         )
@@ -1045,7 +1045,7 @@ mod tests {
                     plural_type: PluralType::Cardinal,
                     span: Span::new(Position::new(9, 1, 10), Position::new(89, 5, 2)),
                     offset: 0,
-                    options: vec![
+                    options: PluralOrSelectOptions(vec![
                         (
                             "=0",
                             PluralOrSelectOption {
@@ -1094,7 +1094,7 @@ mod tests {
                                 span: Span::new(Position::new(68, 4, 9), Position::new(87, 4, 28)),
                             },
                         ),
-                    ],
+                    ]),
                 },
                 AstElement::Literal {
                     value: ".".to_string(),
@@ -1124,7 +1124,7 @@ mod tests {
                     plural_type: PluralType::Cardinal,
                     span: Span::new(Position::new(9, 1, 10), Position::new(99, 5, 2)),
                     offset: 2,
-                    options: vec![
+                    options: PluralOrSelectOptions(vec![
                         (
                             "=0",
                             PluralOrSelectOption {
@@ -1173,7 +1173,7 @@ mod tests {
                                 span: Span::new(Position::new(78, 4, 9), Position::new(97, 4, 28)),
                             },
                         ),
-                    ],
+                    ]),
                 },
                 AstElement::Literal {
                     value: ".".to_string(),
@@ -1197,7 +1197,7 @@ mod tests {
                 plural_type: PluralType::Cardinal,
                 span: Span::new(Position::new(0, 1, 1), Position::new(56, 4, 2)),
                 offset: 0,
-                options: vec![
+                options: PluralOrSelectOptions(vec![
                     (
                         "one",
                         PluralOrSelectOption {
@@ -1218,7 +1218,7 @@ mod tests {
                             span: Span::new(Position::new(44, 3, 9), Position::new(54, 3, 19)),
                         },
                     ),
-                ],
+                ]),
             }])
         )
     }
@@ -1238,7 +1238,7 @@ mod tests {
                 AstElement::Select {
                     value: "gender",
                     span: Span::new(Position::new(0, 1, 1), Position::new(66, 5, 2)),
-                    options: vec![
+                    options: PluralOrSelectOptions(vec![
                         (
                             "male",
                             PluralOrSelectOption {
@@ -1278,7 +1278,7 @@ mod tests {
                                 span: Span::new(Position::new(58, 4, 11), Position::new(64, 4, 17)),
                             },
                         ),
-                    ],
+                    ]),
                 },
                 AstElement::Literal {
                     value: " will respond shortly.\n".to_string(),
@@ -1302,7 +1302,7 @@ mod tests {
                 AstElement::Select {
                     value: "taxableArea",
                     span: Span::new(Position::new(0, 1, 1), Position::new(125, 4, 2)),
-                    options: vec![
+                    options: PluralOrSelectOptions(vec![
                         (
                             "yes",
                             PluralOrSelectOption {
@@ -1349,7 +1349,7 @@ mod tests {
                                 ),
                             },
                         ),
-                    ],
+                    ]),
                 },
                 AstElement::Literal {
                     value: "\n".to_string(),
