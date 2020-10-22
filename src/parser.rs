@@ -14,19 +14,26 @@ pub struct Parser<'s> {
     should_ignore_tag: bool,
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub struct ParserOptions {
+    pub should_ignore_tag: bool,
+}
+
+pub const DEFAULT_PARSER_OPTIONS: &ParserOptions = &ParserOptions { should_ignore_tag: false };
+
 impl<'s> Parser<'s> {
-    pub fn new(message: &'s str) -> Parser<'s> {
+    pub fn new(message: &'s str, options: Option<&ParserOptions>) -> Parser<'s> {
+        let options = options.unwrap_or(DEFAULT_PARSER_OPTIONS);
         Parser {
             message,
             position: Cell::new(Position { offset: 0, line: 1, column: 1 }),
-            // TODO: support configuring this.
-            should_ignore_tag: true,
+            should_ignore_tag: options.should_ignore_tag,
         }
     }
 
     pub fn parse(&mut self) -> Result<Ast> {
         assert_eq!(self.offset(), 0, "parser can only be used once");
-        self.parse_message(0, "")
+        self.parse_message(0, "", false)
     }
 
     /// # Arguments
@@ -35,17 +42,38 @@ impl<'s> Parser<'s> {
     ///   is nested inside the plural or select argument's selector clause.
     /// * `parent_arg_type` - If nested, this is the parent plural or selector's argument type.
     ///   Otherwise this should just be an empty string.
-    fn parse_message(&self, nesting_level: usize, parent_arg_type: &str) -> Result<Ast> {
+    /// * `expecting_close_tag` - If true, this message is directly or indirectly nested inside
+    ///   between a pair of opening and closing tags. The nested message will not parse beyond
+    ///   the closing tag boundary.
+    fn parse_message(
+        &self,
+        nesting_level: usize,
+        parent_arg_type: &str,
+        expecting_close_tag: bool,
+    ) -> Result<Ast> {
         let mut elements: Vec<AstElement> = vec![];
 
         while !self.is_eof() {
             elements.push(match self.char() {
-                '{' => self.parse_argument(nesting_level)?,
+                '{' => self.parse_argument(nesting_level, expecting_close_tag)?,
                 '}' if nesting_level > 0 => break,
-                '#' if parent_arg_type == "plural" || parent_arg_type == "selectordinal" => {
+                '#' if matches!(parent_arg_type, "plural" | "selectordinal") => {
                     let position = self.position();
                     self.bump();
                     AstElement::Pound(Span::new(position, self.position()))
+                }
+                '<' if !self.should_ignore_tag && self.peek() == Some('/') => {
+                    if expecting_close_tag {
+                        break;
+                    } else {
+                        return Err(self.error(
+                            ErrorKind::UnmatchedClosingTag,
+                            Span::new(self.position(), self.position()),
+                        ));
+                    }
+                }
+                '<' if !self.should_ignore_tag && matches!(self.peek(), Some('a'..='z')) => {
+                    self.parse_tag(nesting_level, parent_arg_type)?
                 }
                 _ => self.parse_literal(nesting_level, parent_arg_type)?,
             })
@@ -56,6 +84,87 @@ impl<'s> Parser<'s> {
 
     fn position(&self) -> Position {
         self.position.get()
+    }
+
+    /// A tag name must start with an ASCII lower case letter. The grammar is based on the
+    /// [custom element name][] except that a dash is NOT always mandatory and uppercase letters
+    /// are accepted:
+    ///
+    /// ```ignore
+    /// tag ::= "<" tagName (whitespace)* "/>" | "<" tagName (whitespace)* ">" message "</" tagName (whitespace)* ">"
+    /// tagName ::= [a-z] (PENChar)*
+    /// PENChar ::=
+    ///     "-" | "." | [0-9] | "_" | [a-z] | [A-Z] | #xB7 | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x37D] |
+    ///     [#x37F-#x1FFF] | [#x200C-#x200D] | [#x203F-#x2040] | [#x2070-#x218F] | [#x2C00-#x2FEF] |
+    ///     [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
+    /// ```
+    ///
+    /// [custom element name]: https://html.spec.whatwg.org/multipage/custom-elements.html#valid-custom-element-name
+    fn parse_tag(&self, nesting_level: usize, parent_arg_type: &str) -> Result<AstElement> {
+        let start_position = self.position();
+        self.bump(); // '<'
+
+        let tag_name = self.parse_tag_name();
+        self.bump_space();
+
+        if self.bump_if("/>") {
+            // Self closing tag
+            Ok(AstElement::Tag {
+                value: tag_name,
+                span: Span::new(start_position, self.position()),
+                children: Box::new(vec![]),
+            })
+        } else if self.bump_if(">") {
+            let children = self.parse_message(nesting_level + 1, parent_arg_type, true)?;
+
+            // Expecting a close tag
+            let end_tag_start_position = self.position();
+
+            if self.bump_if("</") {
+                if self.is_eof() || !(matches!(self.char(), 'a'..='z')) {
+                    return Err(self.error(
+                        ErrorKind::InvalidTag,
+                        Span::new(end_tag_start_position, self.position()),
+                    ));
+                }
+
+                let closing_tag_name_start_position = self.position();
+                let closing_tag_name = self.parse_tag_name();
+                if tag_name != closing_tag_name {
+                    return Err(self.error(
+                        ErrorKind::UnmatchedClosingTag,
+                        Span::new(closing_tag_name_start_position, self.position()),
+                    ));
+                }
+
+                self.bump_space();
+                if !self.bump_if(">") {
+                    let span = Span::new(end_tag_start_position, self.position());
+                    return Err(self.error(ErrorKind::InvalidTag, span));
+                }
+
+                Ok(AstElement::Tag {
+                    value: tag_name,
+                    span: Span::new(start_position, self.position()),
+                    children: Box::new(children),
+                })
+            } else {
+                Err(self.error(ErrorKind::UnclosedTag, Span::new(start_position, self.position())))
+            }
+        } else {
+            Err(self.error(ErrorKind::InvalidTag, Span::new(start_position, self.position())))
+        }
+    }
+
+    fn parse_tag_name(&self) -> &str {
+        let start_offset = self.offset();
+
+        self.bump(); // the first tag name character
+        while !self.is_eof() && is_potential_element_name_char(self.char()) {
+            self.bump();
+        }
+
+        &self.message[start_offset..self.offset()]
     }
 
     fn parse_literal(&self, nesting_level: usize, parent_arg_type: &str) -> Result<AstElement> {
@@ -70,7 +179,7 @@ impl<'s> Parser<'s> {
             } else if let Some(fragment) = self.try_parse_unquoted(nesting_level, parent_arg_type) {
                 value.push(fragment);
             } else if let Some(fragment) = self.try_parse_left_angle_bracket() {
-                value.push_str(&fragment);
+                value.push(fragment);
             } else {
                 break;
             }
@@ -92,7 +201,7 @@ impl<'s> Parser<'s> {
         // Check if is valid escaped character
         match self.peek() {
             Some('{') | Some('<') | Some('>') | Some('}') => (),
-            Some('#') if parent_arg_type == "plural" || parent_arg_type == "selectordinal" => (),
+            Some('#') if matches!(parent_arg_type, "plural" | "selectordinal") => (),
             _ => {
                 return None;
             }
@@ -141,21 +250,25 @@ impl<'s> Parser<'s> {
         }
     }
 
-    fn try_parse_left_angle_bracket(&self) -> Option<String> {
-        if self.is_eof() || self.char() != '<' {
-            return None;
+    fn try_parse_left_angle_bracket(&self) -> Option<char> {
+        if !self.is_eof()
+            && self.char() == '<'
+            && (self.should_ignore_tag
+                // If at the opening tag or closing tag position, bail.
+                || !(matches!(self.peek(), Some(c) if c.is_ascii_lowercase() || c == '/')))
+        {
+            self.bump(); // `<`
+            Some('<')
+        } else {
+            None
         }
-
-        if !self.should_ignore_tag {
-            self.bump();
-            // make sure `<` is not parsed as regular opening angle bracket
-            // NOTE: this requires infinite lookahead...
-        }
-
-        Some('<'.to_string())
     }
 
-    fn parse_argument(&self, nesting_level: usize) -> Result<AstElement> {
+    fn parse_argument(
+        &self,
+        nesting_level: usize,
+        expecting_close_tag: bool,
+    ) -> Result<AstElement> {
         let opening_brace_position = self.position();
         self.bump(); // `{`
 
@@ -163,7 +276,7 @@ impl<'s> Parser<'s> {
 
         if self.is_eof() {
             return Err(self.error(
-                ErrorKind::UnclosedArgumentBrace,
+                ErrorKind::ExpectArgumentClosingBrace,
                 Span::new(opening_brace_position, self.position()),
             ));
         }
@@ -189,7 +302,7 @@ impl<'s> Parser<'s> {
 
         if self.is_eof() {
             return Err(self.error(
-                ErrorKind::UnclosedArgumentBrace,
+                ErrorKind::ExpectArgumentClosingBrace,
                 Span::new(opening_brace_position, self.position()),
             ));
         }
@@ -213,12 +326,17 @@ impl<'s> Parser<'s> {
 
                 if self.is_eof() {
                     return Err(self.error(
-                        ErrorKind::UnclosedArgumentBrace,
+                        ErrorKind::ExpectArgumentClosingBrace,
                         Span::new(opening_brace_position, self.position()),
                     ));
                 }
 
-                self.parse_argument_options(nesting_level, value, opening_brace_position)
+                self.parse_argument_options(
+                    nesting_level,
+                    expecting_close_tag,
+                    value,
+                    opening_brace_position,
+                )
             }
 
             _ => Err(self.error(
@@ -231,6 +349,7 @@ impl<'s> Parser<'s> {
     fn parse_argument_options(
         &'s self,
         nesting_level: usize,
+        expecting_close_tag: bool,
         value: &'s str,
         opening_brace_position: Position,
     ) -> Result<AstElement> {
@@ -391,6 +510,7 @@ impl<'s> Parser<'s> {
                 let options = self.try_parse_plural_or_select_options(
                     nesting_level,
                     arg_type,
+                    expecting_close_tag,
                     identifier_and_span,
                 )?;
                 self.try_parse_argument_close(opening_brace_position)?;
@@ -424,10 +544,14 @@ impl<'s> Parser<'s> {
     /// * `parent_arg_type` - the parent argument's type.
     /// * `parsed_first_identifier` - if provided, this is the first identifier-like selector of the
     ///   argument. It is a by-product of a previous parsing attempt.
+    /// * `expecting_close_tag` - If true, this message is directly or indirectly nested inside
+    ///   between a pair of opening and closing tags. The nested message will not parse beyond
+    ///   the closing tag boundary.    ///
     fn try_parse_plural_or_select_options(
         &'s self,
         nesting_level: usize,
         parent_arg_type: &'s str,
+        expecting_close_tag: bool,
         parsed_first_identifier: (&'s str, Span),
     ) -> Result<PluralOrSelectOptions> {
         let mut has_other_clause = false;
@@ -448,7 +572,7 @@ impl<'s> Parser<'s> {
                         ErrorKind::InvalidPluralArgumentSelector,
                     )?;
                     selector_span = Span::new(start_position, self.position());
-                    selector = &self.message[start_position.offset..self.position().offset];
+                    selector = &self.message[start_position.offset..self.offset()];
                 } else {
                     break;
                 }
@@ -486,7 +610,8 @@ impl<'s> Parser<'s> {
                 ));
             }
 
-            let fragment = self.parse_message(nesting_level + 1, parent_arg_type)?;
+            let fragment =
+                self.parse_message(nesting_level + 1, parent_arg_type, expecting_close_tag)?;
             self.try_parse_argument_close(opening_brace_position)?;
 
             options.push((
@@ -594,7 +719,7 @@ impl<'s> Parser<'s> {
             }
         }
 
-        Ok(&self.message[start_position.offset..self.position().offset])
+        Ok(&self.message[start_position.offset..self.offset()])
     }
 
     fn try_parse_argument_close(&self, opening_brace_position: Position) -> Result<()> {
@@ -602,14 +727,14 @@ impl<'s> Parser<'s> {
         //                                       ^^
         if self.is_eof() {
             return Err(self.error(
-                ErrorKind::UnclosedArgumentBrace,
+                ErrorKind::ExpectArgumentClosingBrace,
                 Span::new(opening_brace_position, self.position()),
             ));
         }
 
         if self.char() != '}' {
             return Err(self.error(
-                ErrorKind::MalformedArgument,
+                ErrorKind::ExpectArgumentClosingBrace,
                 Span::new(opening_brace_position, self.position()),
             ));
         }
@@ -656,22 +781,20 @@ impl<'s> Parser<'s> {
     }
 
     /// Bump the parser to the next Unicode scalar value.
-    ///
-    /// If the end of the input has been reached after bump, then `false` is returned.
-    fn bump(&self) -> bool {
+    fn bump(&self) {
         if self.is_eof() {
-            return false;
+            return;
         }
         let Position { mut offset, mut line, mut column } = self.position();
-        if self.char() == '\n' {
+        let ch = self.char();
+        if ch == '\n' {
             line = line.checked_add(1).unwrap();
             column = 1;
         } else {
             column = column.checked_add(1).unwrap();
         }
-        offset += self.char().len_utf8();
+        offset += ch.len_utf8();
         self.position.set(Position { offset, line, column });
-        self.message[self.offset()..].chars().next().is_some()
     }
 
     /// Bump the parser to the target offset.
@@ -698,8 +821,8 @@ impl<'s> Parser<'s> {
                 target_offset
             );
 
-            let has_more = self.bump();
-            if !has_more {
+            self.bump();
+            if self.is_eof() {
                 break;
             }
         }
@@ -794,4 +917,26 @@ fn parse_number_skeleton_from_string(
         // TODO
         parsed_options: None,
     })
+}
+
+fn is_potential_element_name_char(ch: char) -> bool {
+    matches!(ch, '-'
+        | '.'
+        | '0'..='9'
+        | '_'
+        | 'a'..='z'
+        | 'A'..='Z'
+        | '\u{B7}'
+        | '\u{C0}'..='\u{D6}'
+        | '\u{D8}'..='\u{F6}'
+        | '\u{F8}'..='\u{37D}'
+        | '\u{37F}'..='\u{1FFF}'
+        | '\u{200C}'..='\u{200D}'
+        | '\u{203F}'..='\u{2040}'
+        | '\u{2070}'..='\u{218F}'
+        | '\u{2C00}'..='\u{2FEF}'
+        | '\u{3001}'..='\u{D7FF}'
+        | '\u{F900}'..='\u{FDCF}'
+        | '\u{FDF0}'..='\u{FFFD}'
+        | '\u{10000}'..='\u{EFFFF}')
 }

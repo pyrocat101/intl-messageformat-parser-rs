@@ -6,8 +6,8 @@ use std::fmt;
 /// The type of an error that occurred while building an AST.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
-    /// Argumernt is unclosed (e.g. `{0`)
-    UnclosedArgumentBrace,
+    /// Argument is unclosed (e.g. `{0`)
+    ExpectArgumentClosingBrace,
     /// Argument is empty (e.g. `{}`).
     EmptyArgument,
     /// Argument is malformed (e.g. `{foo!}``)
@@ -59,6 +59,13 @@ pub enum ErrorKind {
 
     /// Plural or select argument option must have `other` clause.
     MissingOtherClause,
+
+    /// The tag is malformed. (e.g. `<bold!>foo</bold!>)
+    InvalidTag,
+    /// The closing tag does not match the opening tag. (e.g. `<bold>foo</italic>`)
+    UnmatchedClosingTag,
+    /// The opening tag has unmatched closing tag. (e.g. `<bold>foo`)
+    UnclosedTag,
 }
 
 /// A single position in an ICU message.
@@ -162,7 +169,7 @@ pub enum AstElement<'s> {
     /// This is the `#` symbol that will be substituted with the count.
     Pound(Span),
     /// XML-like tag
-    Tag { value: &'s str, span: Span, children: Box<AstElement<'s>> },
+    Tag { value: &'s str, span: Span, children: Box<Ast<'s>> },
 }
 
 // Until this is resolved, we have to roll our own serialization: https://github.com/serde-rs/serde/issues/745

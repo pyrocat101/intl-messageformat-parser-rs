@@ -7,21 +7,21 @@ const COMPLEX_MSG: &str = "
     female {
         {num_guests, plural, offset:1
             =0 {{host} does not give a party.}
-            =1 {{host} invites {guest} to her party.}
-            =2 {{host} invites {guest} and one other person to her party.}
-    other {{host} invites {guest} and # other people to her party.}}}
+            =1 {{host} invites <em>{guest}</em> to her party.}
+            =2 {{host} invites <em>{guest}</em> and <em>one</em> other person to her party.}
+    other {{host} invites <em>{guest}</em> and <em>#</em> other people to her party.}}}
     male {
         {num_guests, plural, offset:1
             =0 {{host} does not give a party.}
-            =1 {{host} invites {guest} to his party.}
-            =2 {{host} invites {guest} and one other person to his party.}
-            other {{host} invites {guest} and # other people to his party.}}}
+            =1 {{host} invites <em>{guest}</em> to his party.}
+            =2 {{host} invites <em>{guest}</em> and one other person to his party.}
+            other {{host} invites <em>{guest}</em> and <em>#</em> other people to his party.}}}
     other {
         {num_guests, plural, offset:1
         =0 {{host} does not give a party.}
-        =1 {{host} invites {guest} to their party.}
-        =2 {{host} invites {guest} and one other person to their party.}
-        other {{host} invites {guest} and # other people to their party.}}}}
+        =1 {{host} invites <em>{guest}</em> to their party.}
+        =2 {{host} invites <em>{guest}</em> and <em>one</em> other person to their party.}
+        other {{host} invites <em>{guest}</em> and <em>#</em> other people to their party.}}}}
 ";
 
 const NORMAL_MSG: &str = "
@@ -34,12 +34,12 @@ Yo, {firstName} {lastName} has
 
 #[allow(unused_must_use)]
 fn parse_complex_msg() {
-    Parser::new(black_box(COMPLEX_MSG)).parse().unwrap();
+    Parser::new(black_box(COMPLEX_MSG), None).parse().unwrap();
 }
 
 #[allow(unused_must_use)]
 fn parse_normal_msg() {
-    Parser::new(black_box(NORMAL_MSG)).parse().unwrap();
+    Parser::new(black_box(NORMAL_MSG), None).parse().unwrap();
 }
 
 fn benchmark_normal(c: &mut Criterion) {

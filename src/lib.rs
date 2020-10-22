@@ -19,12 +19,12 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::ast::*;
-    use crate::parser::Parser;
+    use crate::parser::*;
 
     #[test]
     fn trivial_1() {
         assert_eq!(
-            Parser::new("a").parse(),
+            Parser::new("a", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "a".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(1, 1, 2))
@@ -35,7 +35,7 @@ mod tests {
     #[test]
     fn trivial_2() {
         assert_eq!(
-            Parser::new("中文").parse(),
+            Parser::new("中文", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "中文".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(6, 1, 3))
@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn basic_argument_1() {
         assert_eq!(
-            Parser::new("{a}").parse(),
+            Parser::new("{a}", None).parse(),
             Ok(vec![AstElement::Argument {
                 value: "a",
                 span: Span::new(Position::new(0, 1, 1), Position::new(3, 1, 4))
@@ -57,7 +57,7 @@ mod tests {
     #[test]
     fn basic_argument_2() {
         assert_eq!(
-            Parser::new("a {b} \nc").parse(),
+            Parser::new("a {b} \nc", None).parse(),
             Ok(vec![
                 AstElement::Literal {
                     value: "a ".to_string(),
@@ -78,7 +78,7 @@ mod tests {
     #[test]
     fn unescaped_string_literal_1() {
         assert_eq!(
-            Parser::new("}").parse(),
+            Parser::new("}", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "}".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(1, 1, 2))
@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn double_apostrophes_1() {
         assert_eq!(
-            Parser::new("a''b").parse(),
+            Parser::new("a''b", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "a'b".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(4, 1, 5))
@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn quoted_string_1() {
         assert_eq!(
-            Parser::new("'{a''b}'").parse(),
+            Parser::new("'{a''b}'", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "{a'b}".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(8, 1, 9))
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn quoted_string_2() {
         assert_eq!(
-            Parser::new("'}a''b{'").parse(),
+            Parser::new("'}a''b{'", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "}a'b{".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(8, 1, 9))
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn quoted_string_3() {
         assert_eq!(
-            Parser::new("aaa'{'").parse(),
+            Parser::new("aaa'{'", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "aaa{".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(6, 1, 7))
@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn quoted_string_4() {
         assert_eq!(
-            Parser::new("aaa'}'").parse(),
+            Parser::new("aaa'}'", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "aaa}".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(6, 1, 7))
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn not_quoted_string_1() {
         assert_eq!(
-            Parser::new("'aa''b'").parse(),
+            Parser::new("'aa''b'", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "'aa'b'".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(7, 1, 8))
@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn not_quoted_string_2() {
         assert_eq!(
-            Parser::new("I don't know").parse(),
+            Parser::new("I don't know", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "I don't know".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(12, 1, 13))
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn unclosed_quoted_string_1() {
         assert_eq!(
-            Parser::new("a '{a{ {}{}{} ''bb").parse(),
+            Parser::new("a '{a{ {}{}{} ''bb", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "a {a{ {}{}{} 'bb".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(18, 1, 19))
@@ -180,7 +180,7 @@ mod tests {
     #[test]
     fn unclosed_quoted_string_2() {
         assert_eq!(
-            Parser::new("a 'a {}{}").parse(),
+            Parser::new("a 'a {}{}", None).parse(),
             Err(Error {
                 kind: ErrorKind::EmptyArgument,
                 message: "a 'a {}{}".to_string(),
@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn unclosed_quoted_string_3() {
         assert_eq!(
-            Parser::new("a '{a{ {}{}{}}}''' \n {}").parse(),
+            Parser::new("a '{a{ {}{}{}}}''' \n {}", None).parse(),
             Err(Error {
                 kind: ErrorKind::EmptyArgument,
                 message: "a '{a{ {}{}{}}}''' \n {}".to_string(),
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn unclosed_quoted_string_4() {
         assert_eq!(
-            Parser::new("You have '{count'").parse(),
+            Parser::new("You have '{count'", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "You have {count".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(17, 1, 18))
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn unclosed_quoted_string_5() {
         assert_eq!(
-            Parser::new("You have '{count").parse(),
+            Parser::new("You have '{count", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "You have {count".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(16, 1, 17))
@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn unclosed_quoted_string_6() {
         assert_eq!(
-            Parser::new("You have '{count}").parse(),
+            Parser::new("You have '{count}", None).parse(),
             Ok(vec![AstElement::Literal {
                 value: "You have {count}".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(17, 1, 18))
@@ -239,7 +239,7 @@ mod tests {
     #[test]
     fn quoted_pound_sign_1() {
         assert_eq!(
-            Parser::new("You {count, plural, one {worked for '#' hour} other {worked for '#' hours}} today.").parse(),
+            Parser::new("You {count, plural, one {worked for '#' hour} other {worked for '#' hours}} today.", None).parse(),
             Ok(vec![
                 AstElement::Literal {
                     value: "You ".to_string(),
@@ -284,7 +284,8 @@ mod tests {
         // '# hour} other {worked for ' is quoted.
         assert_eq!(
             Parser::new(
-                "You {count, plural, one {worked for '# hour} other {worked for '# hours}} today."
+                "You {count, plural, one {worked for '# hour} other {worked for '# hours}} today.",
+                None
             )
             .parse(),
             Ok(vec![
@@ -311,7 +312,7 @@ mod tests {
                                 AstElement::Pound(Span::new(
                                     Position::new(64, 1, 65),
                                     Position::new(65, 1, 66)
-                                ),),
+                                )),
                                 AstElement::Literal {
                                     value: " hours".to_string(),
                                     span: Span::new(
@@ -335,7 +336,7 @@ mod tests {
     #[test]
     fn simple_argument_1() {
         assert_eq!(
-            Parser::new("My name is {0}").parse(),
+            Parser::new("My name is {0}", None).parse(),
             Ok(vec![
                 AstElement::Literal {
                     value: "My name is ".to_string(),
@@ -352,7 +353,7 @@ mod tests {
     #[test]
     fn simple_argument_2() {
         assert_eq!(
-            Parser::new("My name is { name }").parse(),
+            Parser::new("My name is { name }", None).parse(),
             Ok(vec![
                 AstElement::Literal {
                     value: "My name is ".to_string(),
@@ -369,7 +370,7 @@ mod tests {
     #[test]
     fn empty_argument_1() {
         assert_eq!(
-            Parser::new("My name is { }").parse(),
+            Parser::new("My name is { }", None).parse(),
             Err(Error {
                 kind: ErrorKind::EmptyArgument,
                 message: "My name is { }".to_string(),
@@ -381,7 +382,7 @@ mod tests {
     #[test]
     fn empty_argument_2() {
         assert_eq!(
-            Parser::new("My name is {\n}").parse(),
+            Parser::new("My name is {\n}", None).parse(),
             Err(Error {
                 kind: ErrorKind::EmptyArgument,
                 message: "My name is {\n}".to_string(),
@@ -393,7 +394,7 @@ mod tests {
     #[test]
     fn malformed_argument_1() {
         assert_eq!(
-            Parser::new("My name is {0!}").parse(),
+            Parser::new("My name is {0!}", None).parse(),
             Err(Error {
                 kind: ErrorKind::MalformedArgument,
                 message: "My name is {0!}".to_string(),
@@ -405,9 +406,9 @@ mod tests {
     #[test]
     fn unclosed_argument_1() {
         assert_eq!(
-            Parser::new("My name is { 0").parse(),
+            Parser::new("My name is { 0", None).parse(),
             Err(Error {
-                kind: ErrorKind::UnclosedArgumentBrace,
+                kind: ErrorKind::ExpectArgumentClosingBrace,
                 message: "My name is { 0".to_string(),
                 span: Span::new(Position::new(11, 1, 12), Position::new(14, 1, 15))
             })
@@ -417,9 +418,9 @@ mod tests {
     #[test]
     fn unclosed_argument_2() {
         assert_eq!(
-            Parser::new("My name is { ").parse(),
+            Parser::new("My name is { ", None).parse(),
             Err(Error {
-                kind: ErrorKind::UnclosedArgumentBrace,
+                kind: ErrorKind::ExpectArgumentClosingBrace,
                 message: "My name is { ".to_string(),
                 span: Span::new(Position::new(11, 1, 12), Position::new(13, 1, 14))
             })
@@ -429,7 +430,7 @@ mod tests {
     #[test]
     fn simple_number_arg_1() {
         assert_eq!(
-            Parser::new("I have {numCats, number} cats.").parse(),
+            Parser::new("I have {numCats, number} cats.", None).parse(),
             Ok(vec![
                 AstElement::Literal {
                     value: "I have ".to_string(),
@@ -451,8 +452,11 @@ mod tests {
     #[test]
     fn simple_date_and_time_arg_1() {
         assert_eq!(
-            Parser::new("Your meeting is scheduled for the {dateVal, date} at {timeVal, time}")
-                .parse(),
+            Parser::new(
+                "Your meeting is scheduled for the {dateVal, date} at {timeVal, time}",
+                None
+            )
+            .parse(),
             Ok(vec![
                 AstElement::Literal {
                     value: "Your meeting is scheduled for the ".to_string(),
@@ -479,7 +483,7 @@ mod tests {
     #[test]
     fn invalid_arg_format_1() {
         assert_eq!(
-            Parser::new("My name is {0, foo}").parse(),
+            Parser::new("My name is {0, foo}", None).parse(),
             Err(Error {
                 kind: ErrorKind::InvalidArgumentType,
                 message: "My name is {0, foo}".to_string(),
@@ -491,7 +495,7 @@ mod tests {
     #[test]
     fn expect_arg_format_1() {
         assert_eq!(
-            Parser::new("My name is {0, }").parse(),
+            Parser::new("My name is {0, }", None).parse(),
             Err(Error {
                 kind: ErrorKind::ExpectArgumentType,
                 message: "My name is {0, }".to_string(),
@@ -503,9 +507,9 @@ mod tests {
     #[test]
     fn unclosed_number_arg_1() {
         assert_eq!(
-            Parser::new("{0, number").parse(),
+            Parser::new("{0, number", None).parse(),
             Err(Error {
-                kind: ErrorKind::UnclosedArgumentBrace,
+                kind: ErrorKind::ExpectArgumentClosingBrace,
                 message: "{0, number".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(10, 1, 11))
             })
@@ -515,9 +519,9 @@ mod tests {
     #[test]
     fn unclosed_number_arg_2() {
         assert_eq!(
-            Parser::new("{0, number, percent").parse(),
+            Parser::new("{0, number, percent", None).parse(),
             Err(Error {
-                kind: ErrorKind::UnclosedArgumentBrace,
+                kind: ErrorKind::ExpectArgumentClosingBrace,
                 message: "{0, number, percent".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(19, 1, 20))
             })
@@ -527,9 +531,9 @@ mod tests {
     #[test]
     fn unclosed_number_arg_3() {
         assert_eq!(
-            Parser::new("{0, number, ::percent").parse(),
+            Parser::new("{0, number, ::percent", None).parse(),
             Err(Error {
-                kind: ErrorKind::UnclosedArgumentBrace,
+                kind: ErrorKind::ExpectArgumentClosingBrace,
                 message: "{0, number, ::percent".to_string(),
                 span: Span::new(Position::new(0, 1, 1), Position::new(21, 1, 22))
             })
@@ -539,7 +543,7 @@ mod tests {
     #[test]
     fn number_arg_style_1() {
         assert_eq!(
-            Parser::new("{0, number, percent}").parse(),
+            Parser::new("{0, number, percent}", None).parse(),
             Ok(vec![AstElement::Number {
                 value: "0",
                 span: Span::new(Position::new(0, 1, 1), Position::new(20, 1, 21)),
@@ -551,7 +555,7 @@ mod tests {
     #[test]
     fn expect_number_arg_style_1() {
         assert_eq!(
-            Parser::new("{0, number, }").parse(),
+            Parser::new("{0, number, }", None).parse(),
             Err(Error {
                 kind: ErrorKind::ExpectArgumentStyle,
                 message: "{0, number, }".to_string(),
@@ -563,7 +567,7 @@ mod tests {
     #[test]
     fn number_arg_skeleton_1() {
         assert_eq!(
-            Parser::new("{0, number, ::percent}").parse(),
+            Parser::new("{0, number, ::percent}", None).parse(),
             Ok(vec![AstElement::Number {
                 value: "0",
                 span: Span::new(Position::new(0, 1, 1), Position::new(22, 1, 23)),
@@ -579,7 +583,7 @@ mod tests {
     #[test]
     fn number_arg_skeleton_2() {
         assert_eq!(
-            Parser::new("{0, number, :: currency/GBP}").parse(),
+            Parser::new("{0, number, :: currency/GBP}", None).parse(),
             Ok(vec![AstElement::Number {
                 value: "0",
                 span: Span::new(Position::new(0, 1, 1), Position::new(28, 1, 29)),
@@ -595,7 +599,7 @@ mod tests {
     #[test]
     fn number_arg_skeleton_3() {
         assert_eq!(
-            Parser::new("{0, number, ::currency/GBP compact-short}").parse(),
+            Parser::new("{0, number, ::currency/GBP compact-short}", None).parse(),
             Ok(vec![AstElement::Number {
                 value: "0",
                 span: Span::new(Position::new(0, 1, 1), Position::new(41, 1, 42)),
@@ -614,7 +618,7 @@ mod tests {
     #[test]
     fn expect_number_arg_skeleton_token_1() {
         assert_eq!(
-            Parser::new("{0, number, ::}").parse(),
+            Parser::new("{0, number, ::}", None).parse(),
             Err(Error {
                 kind: ErrorKind::ExpectNumberSkeleton,
                 message: "{0, number, ::}".to_string(),
@@ -626,11 +630,11 @@ mod tests {
     #[test]
     fn expect_number_arg_skeleton_token_option_1() {
         assert_eq!(
-            Parser::new("{0, number, ::currency/}").parse(),
+            Parser::new("{0, number, ::currency/}", None).parse(),
             Err(Error {
                 kind: ErrorKind::InvalidNumberSkeleton,
                 message: "{0, number, ::currency/}".to_string(),
-                span: Span::new(Position::new(12, 1, 13), Position::new(23, 1, 24),)
+                span: Span::new(Position::new(12, 1, 13), Position::new(23, 1, 24))
             })
         )
     }
@@ -646,7 +650,7 @@ mod tests {
                     fn $name() {
                         let (skeleton, expected_tokens) = $value;
                         let message = format!("{{0, number, ::{}}}", skeleton);
-                        match Parser::new(&message[..]).parse() {
+                        match Parser::new(&message[..], None).parse() {
                             Ok(ast_elements) => {
                                 match &ast_elements[..] {
                                     [AstElement::Number {
@@ -803,7 +807,7 @@ mod tests {
     #[test]
     fn date_arg_skeleton_1() {
         assert_eq!(
-            Parser::new("{0, date, ::yyyy.MM.dd G 'at' HH:mm:ss vvvv}").parse(),
+            Parser::new("{0, date, ::yyyy.MM.dd G 'at' HH:mm:ss vvvv}", None).parse(),
             Ok(vec![AstElement::Date {
                 value: "0",
                 span: Span::new(Position::new(0, 1, 1), Position::new(44, 1, 45)),
@@ -819,7 +823,7 @@ mod tests {
     #[test]
     fn date_arg_skeleton_2() {
         assert_eq!(
-            Parser::new("{0, date, ::EEE, MMM d, ''yy}").parse(),
+            Parser::new("{0, date, ::EEE, MMM d, ''yy}", None).parse(),
             Ok(vec![AstElement::Date {
                 value: "0",
                 span: Span::new(Position::new(0, 1, 1), Position::new(29, 1, 30)),
@@ -835,7 +839,7 @@ mod tests {
     #[test]
     fn date_arg_skeleton_3() {
         assert_eq!(
-            Parser::new("{0, date, ::h:mm a}").parse(),
+            Parser::new("{0, date, ::h:mm a}", None).parse(),
             Ok(vec![AstElement::Date {
                 value: "0",
                 span: Span::new(Position::new(0, 1, 1), Position::new(19, 1, 20)),
@@ -851,7 +855,7 @@ mod tests {
     #[test]
     fn duplicate_plural_selectors() {
         assert_eq!(
-            Parser::new("You have {count, plural, one {# hot dog} one {# hamburger} one {# sandwich} other {# snacks}} in your lunch bag.").parse(),
+            Parser::new("You have {count, plural, one {# hot dog} one {# hamburger} one {# sandwich} other {# snacks}} in your lunch bag.", None).parse(),
             Err(Error {
                 kind: ErrorKind::DuplicatePluralArgumentSelector,
                 message: "You have {count, plural, one {# hot dog} one {# hamburger} one {# sandwich} other {# snacks}} in your lunch bag.".to_string(),
@@ -863,7 +867,7 @@ mod tests {
     #[test]
     fn duplicate_select_selectors() {
         assert_eq!(
-            Parser::new("You have {count, select, one {# hot dog} one {# hamburger} one {# sandwich} other {# snacks}} in your lunch bag.").parse(),
+            Parser::new("You have {count, select, one {# hot dog} one {# hamburger} one {# sandwich} other {# snacks}} in your lunch bag.", None).parse(),
             Err(Error {
                 kind: ErrorKind::DuplicateSelectArgumentSelector,
                 message: "You have {count, select, one {# hot dog} one {# hamburger} one {# sandwich} other {# snacks}} in your lunch bag.".to_string(),
@@ -875,14 +879,17 @@ mod tests {
     #[test]
     fn treat_unicode_nbsp_as_whitespace() {
         assert_eq!(
-            Parser::new(indoc! {"{gender, select,
-                \u{00a0}male {
-                    {He}}
-                \u{00a0}female {
-                    {She}}
-                \u{00a0}other{
-                    {They}}}
-            "})
+            Parser::new(
+                indoc! {"{gender, select,
+                    \u{00a0}male {
+                        {He}}
+                    \u{00a0}female {
+                        {She}}
+                    \u{00a0}other{
+                        {They}}}
+                "},
+                None
+            )
             .parse(),
             Ok(vec![
                 AstElement::Select {
@@ -968,11 +975,14 @@ mod tests {
     #[test]
     fn plural_arg_1() {
         assert_eq!(
-            Parser::new(indoc! {"\
-            Cart: {itemCount} {itemCount, plural,
-              one {item}
-              other {items}
-            }"})
+            Parser::new(
+                indoc! {"\
+                Cart: {itemCount} {itemCount, plural,
+                  one {item}
+                  other {items}
+                }"},
+                None
+            )
             .parse(),
             Ok(vec![
                 AstElement::Literal {
@@ -1028,12 +1038,15 @@ mod tests {
     #[test]
     fn plural_arg_2() {
         assert_eq!(
-            Parser::new(indoc! {"\
-            You have {itemCount, plural,
-              =0 {no items}
-              one {1 item}
-              other {{itemCount} items}
-            }."})
+            Parser::new(
+                indoc! {"\
+                You have {itemCount, plural,
+                  =0 {no items}
+                  one {1 item}
+                  other {{itemCount} items}
+                }."},
+                None
+            )
             .parse(),
             Ok(vec![
                 AstElement::Literal {
@@ -1107,12 +1120,15 @@ mod tests {
     #[test]
     fn plural_arg_with_offset_1() {
         assert_eq!(
-            Parser::new(indoc! {"\
-            You have {itemCount, plural, offset: 2
-              =0 {no items}
-              one {1 item}
-              other {{itemCount} items}
-            }."})
+            Parser::new(
+                indoc! {"\
+                You have {itemCount, plural, offset: 2
+                  =0 {no items}
+                  one {1 item}
+                  other {{itemCount} items}
+                }."},
+                None
+            )
             .parse(),
             Ok(vec![
                 AstElement::Literal {
@@ -1186,11 +1202,14 @@ mod tests {
     #[test]
     fn plural_arg_with_escaped_nested_message() {
         assert_eq!(
-            Parser::new(indoc! {"\
-            {itemCount, plural,
-              one {item'}'}
-              other {items'}'}
-            }"})
+            Parser::new(
+                indoc! {"\
+                {itemCount, plural,
+                  one {item'}'}
+                  other {items'}'}
+                }"},
+                None
+            )
             .parse(),
             Ok(vec![AstElement::Plural {
                 value: "itemCount",
@@ -1226,13 +1245,16 @@ mod tests {
     #[test]
     fn select_arg_1() {
         assert_eq!(
-            Parser::new(indoc! {"\
-              {gender, select,
-                  male {He}
-                  female {She}
-                  other {They}
-              } will respond shortly.
-            "})
+            Parser::new(
+                indoc! {"\
+                  {gender, select,
+                      male {He}
+                      female {She}
+                      other {They}
+                  } will respond shortly.
+                "},
+                None
+            )
             .parse(),
             Ok(vec![
                 AstElement::Select {
@@ -1291,12 +1313,15 @@ mod tests {
     #[test]
     fn select_arg_with_nested_arguments() {
         assert_eq!(
-            Parser::new(indoc! {"\
-              {taxableArea, select,
-                  yes {An additional {taxRate, number, percent} tax will be collected.}
-                  other {No taxes apply.}
-              }
-            "})
+            Parser::new(
+                indoc! {"\
+                  {taxableArea, select,
+                      yes {An additional {taxRate, number, percent} tax will be collected.}
+                      other {No taxes apply.}
+                  }
+                "},
+                None
+            )
             .parse(),
             Ok(vec![
                 AstElement::Select {
@@ -1320,7 +1345,7 @@ mod tests {
                                             Position::new(45, 2, 24),
                                             Position::new(71, 2, 50)
                                         ),
-                                        style: Some(NumberArgStyle::Style("percent",),),
+                                        style: Some(NumberArgStyle::Style("percent",)),
                                     },
                                     AstElement::Literal {
                                         value: " tax will be collected.".to_string(),
@@ -1357,6 +1382,434 @@ mod tests {
                 },
             ])
         )
+    }
+
+    #[test]
+    fn self_closing_tag_1() {
+        assert_eq!(
+            Parser::new("<test-tag />", None).parse(),
+            Ok(vec![AstElement::Tag {
+                value: "test-tag",
+                children: Box::new(vec![]),
+                span: Span::new(Position::new(0, 1, 1), Position::new(12, 1, 13)),
+            }])
+        )
+    }
+
+    #[test]
+    fn self_closing_tag_2() {
+        assert_eq!(
+            Parser::new("<test-tag/>", None).parse(),
+            Ok(vec![AstElement::Tag {
+                value: "test-tag",
+                children: Box::new(vec![]),
+                span: Span::new(Position::new(0, 1, 1), Position::new(11, 1, 12)),
+            }])
+        )
+    }
+
+    #[test]
+    fn not_self_closing_tag_1() {
+        assert_eq!(
+            Parser::new("< test-tag />", None).parse(),
+            Ok(vec![AstElement::Literal {
+                value: "< test-tag />".to_string(),
+                span: Span::new(Position::new(0, 1, 1), Position::new(13, 1, 14)),
+            }])
+        )
+    }
+
+    #[test]
+    fn invalid_tag_1() {
+        assert_eq!(
+            Parser::new("<test! />", None).parse(),
+            Err(Error {
+                kind: ErrorKind::InvalidTag,
+                message: "<test! />".to_string(),
+                span: Span::new(Position::new(0, 1, 1), Position::new(5, 1, 6)),
+            })
+        )
+    }
+
+    #[test]
+    fn invalid_tag_2() {
+        assert_eq!(
+            Parser::new("<test / >", None).parse(),
+            Err(Error {
+                kind: ErrorKind::InvalidTag,
+                message: "<test / >".to_string(),
+                span: Span::new(Position::new(0, 1, 1), Position::new(6, 1, 7)),
+            })
+        )
+    }
+
+    #[test]
+    fn invalid_tag_3() {
+        assert_eq!(
+            Parser::new("<test foo />", None).parse(),
+            Err(Error {
+                kind: ErrorKind::InvalidTag,
+                message: "<test foo />".to_string(),
+                span: Span::new(Position::new(0, 1, 1), Position::new(6, 1, 7)),
+            })
+        )
+    }
+
+    #[test]
+    fn open_close_tag_1() {
+        assert_eq!(
+            Parser::new("<test-tag></test-tag>", None).parse(),
+            Ok(vec![AstElement::Tag {
+                value: "test-tag",
+                children: Box::new(vec![]),
+                span: Span::new(Position::new(0, 1, 1), Position::new(21, 1, 22)),
+            }])
+        )
+    }
+
+    #[test]
+    fn open_close_tag_2() {
+        assert_eq!(
+            Parser::new("<test-tag>foo</test-tag>", None).parse(),
+            Ok(vec![AstElement::Tag {
+                value: "test-tag",
+                children: Box::new(vec![AstElement::Literal {
+                    value: "foo".to_string(),
+                    span: Span::new(Position::new(10, 1, 11), Position::new(13, 1, 14))
+                }]),
+                span: Span::new(Position::new(0, 1, 1), Position::new(24, 1, 25)),
+            }])
+        )
+    }
+
+    #[test]
+    fn open_close_tag_3() {
+        assert_eq!(
+            Parser::new("<test-tag>foo {0} bar</test-tag>", None).parse(),
+            Ok(vec![AstElement::Tag {
+                value: "test-tag",
+                span: Span::new(Position::new(0, 1, 1), Position::new(32, 1, 33)),
+                children: Box::new(vec![
+                    AstElement::Literal {
+                        value: "foo ".to_string(),
+                        span: Span::new(Position::new(10, 1, 11), Position::new(14, 1, 15)),
+                    },
+                    AstElement::Argument {
+                        value: "0",
+                        span: Span::new(Position::new(14, 1, 15), Position::new(17, 1, 18)),
+                    },
+                    AstElement::Literal {
+                        value: " bar".to_string(),
+                        span: Span::new(Position::new(17, 1, 18), Position::new(21, 1, 22)),
+                    },
+                ]),
+            }])
+        )
+    }
+
+    #[test]
+    fn open_close_tag_with_nested_arg() {
+        assert_eq!(
+            Parser::new(
+                indoc! {"<bold>You have {
+                    count, plural,
+                    one {<italic>#</italic> apple}
+                    other {<italic>#</italic> apples}
+                }.</bold>"},
+                None
+            )
+            .parse(),
+            Ok(vec![AstElement::Tag {
+                value: "bold",
+                span: Span::new(Position::new(0, 1, 1), Position::new(118, 5, 10)),
+                children: Box::new(vec![
+                    AstElement::Literal {
+                        value: "You have ".to_string(),
+                        span: Span::new(Position::new(6, 1, 7), Position::new(15, 1, 16)),
+                    },
+                    AstElement::Plural {
+                        value: "count",
+                        plural_type: PluralType::Cardinal,
+                        span: Span::new(Position::new(15, 1, 16), Position::new(110, 5, 2)),
+                        offset: 0,
+                        options: PluralOrSelectOptions(vec![
+                            (
+                                "one",
+                                PluralOrSelectOption {
+                                    value: vec![
+                                        AstElement::Tag {
+                                            value: "italic",
+                                            span: Span::new(
+                                                Position::new(45, 3, 10),
+                                                Position::new(63, 3, 28)
+                                            ),
+                                            children: Box::new(vec![AstElement::Pound(Span::new(
+                                                Position::new(53, 3, 18),
+                                                Position::new(54, 3, 19)
+                                            ))]),
+                                        },
+                                        AstElement::Literal {
+                                            value: " apple".to_string(),
+                                            span: Span::new(
+                                                Position::new(63, 3, 28),
+                                                Position::new(69, 3, 34)
+                                            ),
+                                        },
+                                    ],
+                                    span: Span::new(
+                                        Position::new(44, 3, 9),
+                                        Position::new(70, 3, 35)
+                                    ),
+                                },
+                            ),
+                            (
+                                "other",
+                                PluralOrSelectOption {
+                                    value: vec![
+                                        AstElement::Tag {
+                                            value: "italic",
+                                            span: Span::new(
+                                                Position::new(82, 4, 12),
+                                                Position::new(100, 4, 30)
+                                            ),
+                                            children: Box::new(vec![AstElement::Pound(Span::new(
+                                                Position::new(90, 4, 20),
+                                                Position::new(91, 4, 21)
+                                            ))]),
+                                        },
+                                        AstElement::Literal {
+                                            value: " apples".to_string(),
+                                            span: Span::new(
+                                                Position::new(100, 4, 30),
+                                                Position::new(107, 4, 37)
+                                            ),
+                                        },
+                                    ],
+                                    span: Span::new(
+                                        Position::new(81, 4, 11),
+                                        Position::new(108, 4, 38)
+                                    ),
+                                },
+                            ),
+                        ]),
+                    },
+                    AstElement::Literal {
+                        value: ".".to_string(),
+                        span: Span::new(Position::new(110, 5, 2), Position::new(111, 5, 3)),
+                    },
+                ]),
+            }])
+        )
+    }
+
+    #[test]
+    fn open_close_tag_with_args() {
+        assert_eq!(
+            Parser::new(
+                "I <b>have</b> <foo>{numCats, number} some string {placeholder}</foo> cats.",
+                None
+            )
+            .parse(),
+            Ok(vec![
+                AstElement::Literal {
+                    value: "I ".to_string(),
+                    span: Span::new(Position::new(0, 1, 1), Position::new(2, 1, 3)),
+                },
+                AstElement::Tag {
+                    value: "b",
+                    span: Span::new(Position::new(2, 1, 3), Position::new(13, 1, 14)),
+                    children: Box::new(vec![AstElement::Literal {
+                        value: "have".to_string(),
+                        span: Span::new(Position::new(5, 1, 6), Position::new(9, 1, 10)),
+                    }]),
+                },
+                AstElement::Literal {
+                    value: " ".to_string(),
+                    span: Span::new(Position::new(13, 1, 14), Position::new(14, 1, 15)),
+                },
+                AstElement::Tag {
+                    value: "foo",
+                    span: Span::new(Position::new(14, 1, 15), Position::new(68, 1, 69)),
+                    children: Box::new(vec![
+                        AstElement::Number {
+                            value: "numCats",
+                            span: Span::new(Position::new(19, 1, 20), Position::new(36, 1, 37)),
+                            style: None,
+                        },
+                        AstElement::Literal {
+                            value: " some string ".to_string(),
+                            span: Span::new(Position::new(36, 1, 37), Position::new(49, 1, 50)),
+                        },
+                        AstElement::Argument {
+                            value: "placeholder",
+                            span: Span::new(Position::new(49, 1, 50), Position::new(62, 1, 63)),
+                        },
+                    ]),
+                },
+                AstElement::Literal {
+                    value: " cats.".to_string(),
+                    span: Span::new(Position::new(68, 1, 69), Position::new(74, 1, 75)),
+                },
+            ])
+        )
+    }
+
+    #[test]
+    fn incomplete_nested_message_in_tag() {
+        assert_eq!(
+            Parser::new("<a>{a, plural, other {</a>}}", None).parse(),
+            Err(Error {
+                kind: ErrorKind::ExpectArgumentClosingBrace,
+                message: "<a>{a, plural, other {</a>}}".to_string(),
+                span: Span::new(Position::new(21, 1, 22), Position::new(22, 1, 23)),
+            })
+        )
+    }
+
+    #[test]
+    fn ignore_tags_1() {
+        assert_eq!(
+            Parser::new("<test-tag></test-tag>", Some(&ParserOptions { should_ignore_tag: true }))
+                .parse(),
+            Ok(vec![AstElement::Literal {
+                value: "<test-tag></test-tag>".to_string(),
+                span: Span::new(Position::new(0, 1, 1), Position::new(21, 1, 22)),
+            }])
+        )
+    }
+
+    #[test]
+    fn unmatched_open_close_tag_1() {
+        assert_eq!(
+            Parser::new("<a></b>", None).parse(),
+            Err(Error {
+                kind: ErrorKind::UnmatchedClosingTag,
+                message: "<a></b>".to_string(),
+                span: Span::new(Position::new(5, 1, 6), Position::new(6, 1, 7))
+            })
+        )
+    }
+
+    #[test]
+    fn unmatched_open_close_tag_2() {
+        assert_eq!(
+            Parser::new("<a></ab>", None).parse(),
+            Err(Error {
+                kind: ErrorKind::UnmatchedClosingTag,
+                message: "<a></ab>".to_string(),
+                span: Span::new(Position::new(5, 1, 6), Position::new(7, 1, 8))
+            })
+        )
+    }
+
+    #[test]
+    fn invalid_close_tag_1() {
+        assert_eq!(
+            Parser::new("<a></ b>", None).parse(),
+            Err(Error {
+                kind: ErrorKind::InvalidTag,
+                message: "<a></ b>".to_string(),
+                span: Span::new(Position::new(3, 1, 4), Position::new(5, 1, 6))
+            })
+        )
+    }
+
+    #[test]
+    fn quoted_tag_1() {
+        assert_eq!(
+            Parser::new("'<a>", None).parse(),
+            Ok(vec![AstElement::Literal {
+                value: "<a>".to_string(),
+                span: Span::new(Position::new(0, 1, 1), Position::new(4, 1, 5)),
+            }])
+        )
+    }
+
+    #[test]
+    fn ignore_tag_number_arg_1() {
+        assert_eq!(
+            Parser::new(
+                "I have <foo>{numCats, number}</foo> cats.",
+                Some(&ParserOptions { should_ignore_tag: true })
+            )
+            .parse(),
+            Ok(vec![
+                AstElement::Literal {
+                    value: "I have <foo>".to_string(),
+                    span: Span::new(Position::new(0, 1, 1), Position::new(12, 1, 13)),
+                },
+                AstElement::Number {
+                    value: "numCats",
+                    span: Span::new(Position::new(12, 1, 13), Position::new(29, 1, 30)),
+                    style: None,
+                },
+                AstElement::Literal {
+                    value: "</foo> cats.".to_string(),
+                    span: Span::new(Position::new(29, 1, 30), Position::new(41, 1, 42)),
+                },
+            ])
+        )
+    }
+
+    #[test]
+    fn left_angle_bracket_1() {
+        assert_eq!(
+            Parser::new("I <3 cats.", None).parse(),
+            Ok(vec![AstElement::Literal {
+                value: "I <3 cats.".to_string(),
+                span: Span::new(Position::new(0, 1, 1), Position::new(10, 1, 11))
+            }])
+        )
+    }
+
+    #[test]
+    fn escaped_multiple_tags_1() {
+        assert_eq!(
+            Parser::new("I '<'3 cats. '<a>foo</a>' '<b>bar</b>'", None).parse(),
+            Ok(vec![AstElement::Literal {
+                value: "I <3 cats. <a>foo</a> <b>bar</b>".to_string(),
+                span: Span::new(Position::new(0, 1, 1), Position::new(38, 1, 39))
+            }])
+        )
+    }
+
+    #[test]
+    fn nested_tags_1() {
+        assert_eq!(
+            Parser::new("this is <a>nested <b>{placeholder}</b></a>", None).parse(),
+            Ok(vec![
+                AstElement::Literal {
+                    value: "this is ".to_string(),
+                    span: Span::new(Position::new(0, 1, 1), Position::new(8, 1, 9)),
+                },
+                AstElement::Tag {
+                    value: "a",
+                    span: Span::new(Position::new(8, 1, 9), Position::new(42, 1, 43)),
+                    children: Box::new(vec![
+                        AstElement::Literal {
+                            value: "nested ".to_string(),
+                            span: Span::new(Position::new(11, 1, 12), Position::new(18, 1, 19)),
+                        },
+                        AstElement::Tag {
+                            value: "b",
+                            span: Span::new(Position::new(18, 1, 19), Position::new(38, 1, 39)),
+                            children: Box::new(vec![AstElement::Argument {
+                                value: "placeholder",
+                                span: Span::new(Position::new(21, 1, 22), Position::new(34, 1, 35)),
+                            }]),
+                        },
+                    ]),
+                },
+            ])
+        )
+    }
+
+    /// See: https://github.com/formatjs/formatjs/issues/1845
+    #[test]
+    fn less_than_sign_1() {
+        assert!(Parser::new("< {level, select, A {1} 4 {2} 3 {3} 2{6} 1{12}} hours", None)
+            .parse()
+            .is_ok())
     }
 
     // TODO: port https://github.com/formatjs/formatjs/blob/main/packages/intl-messageformat-parser/tests/nested.test.ts
