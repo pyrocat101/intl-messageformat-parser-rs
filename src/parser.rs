@@ -147,9 +147,9 @@ impl<'s> Parser<'s> {
         }
 
         if !self.should_ignore_tag {
+            self.bump();
             // make sure `<` is not parsed as regular opening angle bracket
             // NOTE: this requires infinite lookahead...
-            // TODO
         }
 
         Some('<'.to_string())
