@@ -1,0 +1,24 @@
+[package]
+name = "intl-messageformat-parser-rs"
+version = "0.1.0"
+authors = ["Linjie Ding <pyrocat101@users.noreply.github.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# Use criterion instead.
+bench = false
+
+[dependencies]
+serde = { version = "1.0.117", features = ["derive"] }
+
+[dev-dependencies]
+pretty_assertions = "0.6.1"
+indoc = "1.0"
+criterion = "0.3.3"
+serde_json = "1.0.59"
+
+[[bench]]
+name = "benchmark"
+harness = false

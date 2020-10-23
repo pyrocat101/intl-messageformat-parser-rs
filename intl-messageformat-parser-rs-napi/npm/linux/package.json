@@ -1,0 +1,22 @@
+{
+  "name": "intl-messageformat-parser-rs-napi-linux",
+  "version": "0.1.0",
+  "os": [
+    "linux"
+  ],
+  "main": "intl-messageformat-parser-rs-napi.linux.node",
+  "files": [
+    "intl-messageformat-parser-rs-napi.linux.node"
+  ],
+  "license": "MIT",
+  "cpu": [
+    "x64"
+  ],
+  "engines": {
+    "node": ">= 8.9"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  }
+}

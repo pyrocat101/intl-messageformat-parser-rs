@@ -1,0 +1,22 @@
+{
+  "name": "intl-messageformat-parser-rs-napi-darwin",
+  "version": "0.1.0",
+  "os": [
+    "darwin"
+  ],
+  "main": "intl-messageformat-parser-rs-napi.darwin.node",
+  "files": [
+    "intl-messageformat-parser-rs-napi.darwin.node"
+  ],
+  "license": "MIT",
+  "cpu": [
+    "x64"
+  ],
+  "engines": {
+    "node": ">= 8.9"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  }
+}

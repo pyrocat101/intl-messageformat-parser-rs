@@ -1,0 +1,22 @@
+{
+  "name": "intl-messageformat-parser-rs-napi-win32",
+  "version": "0.1.0",
+  "os": [
+    "win32"
+  ],
+  "main": "intl-messageformat-parser-rs-napi.win32.node",
+  "files": [
+    "intl-messageformat-parser-rs-napi.win32.node"
+  ],
+  "license": "MIT",
+  "cpu": [
+    "x64"
+  ],
+  "engines": {
+    "node": ">= 8.9"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  }
+}

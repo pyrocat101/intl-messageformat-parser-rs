@@ -574,11 +574,12 @@ impl<'s> Parser<'s> {
                     selector_span = Span::new(start_position, self.position());
                     selector = &self.message[start_position.offset..self.offset()];
                 } else {
+                    // TODO: check to make sure that the plural category is valid.
                     break;
                 }
             }
 
-            // Duplicate selector clausees
+            // Duplicate selector clauses
             if selectors_parsed.contains(selector) {
                 return Err(self.error(
                     if parent_arg_type == "select" {

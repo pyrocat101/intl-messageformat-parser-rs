@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Enable version updates for npm
+  - package-ecosystem: "npm"
+    directory: "/intl-messageformat-parser-rs"
+    schedule:
+      interval: "daily"
+    # Specify labels for npm pull requests
+    labels:
+      - "npm"
+      - "dependencies"
+    versioning-strategy: increase
+
+  # Enable version updates for cargo
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    labels:
+      - "rust"
+      - "dependencies"
