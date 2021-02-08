@@ -138,8 +138,13 @@ export interface DateTimeSkeleton {
 export type Skeleton = NumberSkeleton | DateTimeSkeleton;
 
 import {loadBinding} from '@node-rs/helper';
-export const parse: (message: string) => MessageFormatElement[] = loadBinding(
+
+const _parse = loadBinding(
     __dirname,
     'intl-messageformat-parser-rs',
     'intl-messageformat-parser-rs',
 ).parse;
+
+export function parse(message: string): MessageFormatElement[] {
+    return JSON.parse(_parse(message));
+}

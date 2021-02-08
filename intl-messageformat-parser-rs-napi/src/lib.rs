@@ -7,7 +7,7 @@ extern crate napi_derive;
 
 // use std::convert::TryInto;
 
-use napi::{CallContext, JsString, JsUnknown, Module, Result};
+use napi::{CallContext, JsString, Module, Result};
 
 #[cfg(all(unix, not(target_env = "musl")))]
 #[global_allocator]
@@ -26,7 +26,7 @@ fn init(module: &mut Module) -> Result<()> {
 
 // TODO: support options
 #[js_function(1)]
-fn parse(ctx: CallContext) -> Result<JsUnknown> {
+fn parse(ctx: CallContext) -> Result<JsString> {
     let message = ctx.get::<JsString>(0)?;
     let message = message.as_str()?;
 
@@ -36,5 +36,8 @@ fn parse(ctx: CallContext) -> Result<JsUnknown> {
         napi::Error::from_reason("Invalid message!".to_string())
     })?;
 
-    ctx.env.to_js_value(&ast)
+    let json =
+        serde_json::to_string(&ast).map_err(|err| napi::Error::from_reason(err.to_string()))?;
+
+    ctx.env.create_string(&json)
 }

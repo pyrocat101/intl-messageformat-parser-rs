@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 intl-messageformat-parser-rs = { path = "../intl-messageformat-parser-rs" }
 napi = { version = "0.5", features = ["serde-json"] }
+serde_json = "1.0"
 napi-derive = "0.5"
 jemallocator = "0.3.0"
 
